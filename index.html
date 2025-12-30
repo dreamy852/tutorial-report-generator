@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorial Report Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="title" data-en="Tutorial Report Generator" data-zh="補習報告生成器">Tutorial Report Generator</h1>
+            <div class="language-toggle">
+                <button class="lang-btn active" data-lang="en" onclick="switchLanguage('en')">English</button>
+                <button class="lang-btn" data-lang="zh" onclick="switchLanguage('zh')">繁體中文</button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Form Section -->
+            <div class="form-section">
+                <form id="reportForm" class="form">
+                    <!-- Student Information -->
+                    <section class="form-group">
+                        <h2 class="section-title" data-en="Student Information" data-zh="學生資料">Student Information</h2>
+                        
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="studentName" data-en="Student Name" data-zh="學生姓名">Student Name *</label>
+                                <input type="text" id="studentName" name="studentName" required>
+                            </div>
+                            
+                            <div class="form-field">
+                                <label for="subject" data-en="Subject" data-zh="科目">Subject *</label>
+                                <select id="subject" name="subject" required>
+                                    <option value="">-- Select --</option>
+                                    <option value="Mathematics" data-en="Mathematics" data-zh="數學">Mathematics</option>
+                                    <option value="English Language" data-en="English Language" data-zh="英文">English Language</option>
+                                    <option value="Science" data-en="Science" data-zh="科學">Science</option>
+                                    <option value="Chinese Language" data-en="Chinese Language" data-zh="中文">Chinese Language</option>
+                                    <option value="General Studies" data-en="General Studies" data-zh="常識">General Studies</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="classGrade" data-en="Class/Grade" data-zh="班級/年級">Class/Grade *</label>
+                            <input type="text" id="classGrade" name="classGrade" required>
+                        </div>
+                    </section>
+
+                    <!-- Report Details -->
+                    <section class="form-group">
+                        <h2 class="section-title" data-en="Report Details" data-zh="報告詳情">Report Details</h2>
+                        
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="reportTitle" data-en="Report Title" data-zh="報告標題">Report Title *</label>
+                                <input type="text" id="reportTitle" name="reportTitle" required>
+                            </div>
+                            
+                            <div class="form-field">
+                                <label for="reportDate" data-en="Report Date" data-zh="報告日期">Report Date *</label>
+                                <input type="date" id="reportDate" name="reportDate" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="teacherName" data-en="Teacher Name" data-zh="教師姓名">Teacher Name *</label>
+                            <input type="text" id="teacherName" name="teacherName" required>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="schoolLogo" data-en="School Logo" data-zh="學校標誌">School Logo</label>
+                            <div class="file-upload-wrapper">
+                                <input type="file" id="schoolLogo" name="schoolLogo" accept="image/*" onchange="previewLogo(event)">
+                                <div id="logoPreview" class="logo-preview"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Report Sections -->
+                    <section class="form-group">
+                        <h2 class="section-title" data-en="Report Content" data-zh="報告內容">Report Content</h2>
+                        
+                        <!-- Section 1 -->
+                        <div class="report-section-wrapper">
+                            <div class="section-header">
+                                <h3 class="section-subtitle" data-en="Section 1: Academic Performance Assessment" data-zh="第一部分：學業表現評估">Section 1: Academic Performance Assessment *</h3>
+                                <button type="button" class="ai-enhance-btn" onclick="enhanceWithAI('section1', this)" data-en="Enhance with AI" data-zh="AI 增強">Enhance with AI</button>
+                            </div>
+                            <div id="section1" class="rich-text-editor"></div>
+                        </div>
+
+                        <!-- Section 2 -->
+                        <div class="report-section-wrapper">
+                            <div class="section-header">
+                                <h3 class="section-subtitle" data-en="Section 2: In-class Behavioral Performance" data-zh="第二部分：課堂行為表現">Section 2: In-class Behavioral Performance *</h3>
+                                <button type="button" class="ai-enhance-btn" onclick="enhanceWithAI('section2', this)" data-en="Enhance with AI" data-zh="AI 增強">Enhance with AI</button>
+                            </div>
+                            <div id="section2" class="rich-text-editor"></div>
+                        </div>
+
+                        <!-- Section 3 -->
+                        <div class="report-section-wrapper">
+                            <div class="section-header">
+                                <h3 class="section-subtitle" data-en="Section 3: Learning Plan for Next 4 Lessons" data-zh="第三部分：未來四節課學習計劃">Section 3: Learning Plan for Next 4 Lessons *</h3>
+                                <button type="button" class="ai-enhance-btn" onclick="enhanceWithAI('section3', this)" data-en="Enhance with AI" data-zh="AI 增強">Enhance with AI</button>
+                            </div>
+                            <div id="section3" class="rich-text-editor"></div>
+                        </div>
+
+                        <!-- Section 4 -->
+                        <div class="report-section-wrapper">
+                            <div class="section-header">
+                                <h3 class="section-subtitle" data-en="Section 4: Teacher's Final Remarks & Action Items" data-zh="第四部分：教師總結及行動項目">Section 4: Teacher's Final Remarks & Action Items *</h3>
+                                <button type="button" class="ai-enhance-btn" onclick="enhanceWithAI('section4', this)" data-en="Enhance with AI" data-zh="AI 增強">Enhance with AI</button>
+                            </div>
+                            <div id="section4" class="rich-text-editor"></div>
+                        </div>
+                    </section>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="clearForm()" data-en="Clear Form" data-zh="清除表單">Clear Form</button>
+                        <button type="button" class="btn btn-primary" onclick="generateReport(this)" data-en="Generate LaTeX" data-zh="生成 LaTeX">Generate LaTeX</button>
+                        <button type="button" class="btn btn-primary" onclick="generatePDF(this)" data-en="Generate PDF" data-zh="生成 PDF">Generate PDF</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Live Preview Section -->
+            <div class="preview-section">
+                <h2 class="section-title" data-en="Live Preview" data-zh="即時預覽">Live Preview</h2>
+                <div id="livePreview" class="preview-content">
+                    <div class="preview-placeholder" data-en="Start filling the form to see the preview..." data-zh="開始填寫表單以查看預覽...">Start filling the form to see the preview...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+

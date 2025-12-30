@@ -1,0 +1,46 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{xeCJK}
+\geometry{margin=1in}
+
+% Chinese font settings
+\setCJKmainfont{Microsoft JhengHei}
+
+% Colors
+\definecolor{primaryblue}{RGB}{30, 64, 175}
+
+\title{\textbf{\{REPORT_TITLE\}}}
+\author{}
+\date{\{DATE\}}
+
+\begin{document}
+\maketitle
+
+\section*{學生資料}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{姓名:} \{STUDENT_NAME\}
+    \item \textbf{科目:} \{SUBJECT\}
+    \item \textbf{班級/年級:} \{CLASS_GRADE\}
+    \item \textbf{教師:} \{TEACHER_NAME\}
+\end{itemize}
+
+\vspace{0.5cm}
+
+\section*{第一部分：學業表現評估}
+\{SECTION1\}
+
+\section*{第二部分：課堂行為表現}
+\{SECTION2\}
+
+\section*{第三部分：未來四節課學習計劃}
+\{SECTION3\}
+
+\section*{第四部分：教師總結及行動項目}
+\{SECTION4\}
+
+\end{document}
+
