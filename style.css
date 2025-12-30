@@ -156,10 +156,30 @@ body {
 
 .form-field input[type="text"]:focus,
 .form-field input[type="date"]:focus,
+.form-field input[type="password"]:focus,
 .form-field select:focus {
     outline: none;
     border-color: var(--primary-blue);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-field input[type="password"] {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: var(--white);
+    font-family: monospace;
+}
+
+.form-help-text {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    font-style: italic;
 }
 
 .form-field input[type="file"] {

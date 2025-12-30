@@ -229,16 +229,18 @@ async function enhanceWithAI(sectionId, buttonElement) {
  */
 async function enhanceTextWithDeepSeek(textSection, language = 'en') {
     // DeepSeek API Configuration
-    const API_KEY = 'YOUR_DEEPSEEK_API_KEY'; // Replace with your actual DeepSeek API key
+    // Get API key from form field
+    const apiKeyField = document.getElementById('deepseekApiKey');
+    const API_KEY = apiKeyField ? apiKeyField.value.trim() : '';
     const API_URL = 'https://api.deepseek.com/v1/chat/completions';
     
     // Validate API key
-    if (!API_KEY || API_KEY === 'YOUR_DEEPSEEK_API_KEY') {
+    if (!API_KEY || API_KEY === '') {
         console.warn('DeepSeek API key not configured. Using mock enhancement.');
         // Return mock enhanced text for demonstration
         return language === 'en' 
-            ? `[Enhanced Version]\n\n${textSection}\n\n[Note: Please configure your DeepSeek API key in app.js to enable real AI enhancement]`
-            : `[增強版本]\n\n${textSection}\n\n[注意：請在 app.js 中配置您的 DeepSeek API 金鑰以啟用真實的 AI 增強功能]`;
+            ? `[Enhanced Version]\n\n${textSection}\n\n[Note: Please enter your DeepSeek API key in the form to enable real AI enhancement]`
+            : `[增強版本]\n\n${textSection}\n\n[注意：請在表單中輸入您的 DeepSeek API 金鑰以啟用真實的 AI 增強功能]`;
     }
     
     // Validate input
@@ -466,50 +468,11 @@ async function generatePDF(buttonElement) {
 
 /**
  * Create PDF Document with jsPDF
+ * Uses html2canvas for Chinese character support
  * @param {Object} data - Form data object
  */
 async function createPDFDocument(data) {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-    });
-    
-    // Colors
-    const primaryBlue = [30, 64, 175];
-    const lightGray = [245, 245, 245];
-    const darkGray = [100, 100, 100];
-    
-    // Page dimensions
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    const contentWidth = pageWidth - (margin * 2);
-    let yPosition = margin;
-    
-    // Helper function to add new page if needed
-    const checkPageBreak = (requiredHeight) => {
-        if (yPosition + requiredHeight > pageHeight - margin) {
-            doc.addPage();
-            yPosition = margin;
-            return true;
-        }
-        return false;
-    };
-    
-    // Helper function to strip HTML and get plain text
-    const stripHTML = (html) => {
-        if (!html) return '';
-        const tmp = document.createElement('DIV');
-        tmp.innerHTML = html;
-        return tmp.textContent || tmp.innerText || '';
-    };
-    
-    // Helper function to split text into lines that fit width
-    const splitText = (text, maxWidth) => {
-        return doc.splitTextToSize(text, maxWidth);
-    };
     
     // Format date
     const formattedDate = new Date(data.reportDate).toLocaleDateString(
@@ -517,184 +480,164 @@ async function createPDFDocument(data) {
         { year: 'numeric', month: 'long', day: 'numeric' }
     );
     
-    // Add logo if available
-    if (data.logo && data.logo.trim() !== '') {
-        try {
-            // Convert base64 to image
-            const img = new Image();
-            await new Promise((resolve, reject) => {
-                img.onload = resolve;
-                img.onerror = reject;
-                img.src = data.logo;
-            });
+    // Create a temporary container for PDF rendering
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = '210mm'; // A4 width
+    tempContainer.style.padding = '20mm';
+    tempContainer.style.backgroundColor = '#ffffff';
+    tempContainer.style.fontFamily = data.language === 'zh' ? 'Microsoft JhengHei, Arial, sans-serif' : 'Arial, sans-serif';
+    document.body.appendChild(tempContainer);
+    
+    try {
+        // Build HTML content for PDF
+        let htmlContent = `
+            <div style="text-align: center; margin-bottom: 20px;">
+                ${data.logo ? `<img src="${data.logo}" style="max-width: 40mm; max-height: 40mm; margin-bottom: 10px;" />` : ''}
+                <h1 style="color: #1e40af; font-size: 24pt; margin: 10px 0;">${escapeHtml(data.reportTitle)}</h1>
+                <p style="color: #666; font-size: 12pt; margin: 5px 0;">${data.language === 'en' ? 'Date: ' : '日期：'}${formattedDate}</p>
+            </div>
             
-            // Calculate logo dimensions (max width 40mm, maintain aspect ratio)
-            const maxLogoWidth = 40;
-            const logoWidth = Math.min(maxLogoWidth, img.width * (maxLogoWidth / img.width));
-            const logoHeight = img.height * (logoWidth / img.width);
-            
-            doc.addImage(data.logo, 'PNG', pageWidth / 2 - logoWidth / 2, yPosition, logoWidth, logoHeight);
-            yPosition += logoHeight + 10;
-        } catch (error) {
-            console.warn('Could not add logo to PDF:', error);
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <h2 style="color: #1e40af; font-size: 14pt; text-align: center; margin: 0 0 10px 0;">${data.language === 'en' ? 'Student Information' : '學生資料'}</h2>
+                <div style="font-size: 11pt; line-height: 1.8;">
+                    <p style="margin: 5px 0;"><strong>${data.language === 'en' ? 'Name: ' : '姓名：'}</strong>${escapeHtml(data.studentName)}</p>
+                    <p style="margin: 5px 0;"><strong>${data.language === 'en' ? 'Subject: ' : '科目：'}</strong>${escapeHtml(data.subject)}</p>
+                    <p style="margin: 5px 0;"><strong>${data.language === 'en' ? 'Class/Grade: ' : '班級/年級：'}</strong>${escapeHtml(data.classGrade)}</p>
+                    <p style="margin: 5px 0;"><strong>${data.language === 'en' ? 'Teacher: ' : '教師：'}</strong>${escapeHtml(data.teacherName)}</p>
+                </div>
+            </div>
+        `;
+        
+        // Add sections
+        const sections = [
+            {
+                title: data.language === 'en' 
+                    ? 'Section 1: Academic Performance Assessment' 
+                    : '第一部分：學業表現評估',
+                content: data.section1
+            },
+            {
+                title: data.language === 'en' 
+                    ? 'Section 2: In-class Behavioral Performance' 
+                    : '第二部分：課堂行為表現',
+                content: data.section2
+            },
+            {
+                title: data.language === 'en' 
+                    ? 'Section 3: Learning Plan for Next 4 Lessons' 
+                    : '第三部分：未來四節課學習計劃',
+                content: data.section3
+            },
+            {
+                title: data.language === 'en' 
+                    ? 'Section 4: Teacher\'s Final Remarks & Action Items' 
+                    : '第四部分：教師總結及行動項目',
+                content: data.section4
+            }
+        ];
+        
+        sections.forEach((section, index) => {
+            htmlContent += `
+                <div style="margin-bottom: 20px; page-break-inside: avoid;">
+                    <h2 style="color: #1e40af; font-size: 14pt; margin: 15px 0 10px 0; border-bottom: 2px solid #1e40af; padding-bottom: 5px;">
+                        ${escapeHtml(section.title)}
+                    </h2>
+                    <div style="font-size: 11pt; line-height: 1.6; text-align: justify;">
+                        ${section.content || (data.language === 'en' ? '<p>No content provided.</p>' : '<p>未提供內容。</p>')}
+                    </div>
+                </div>
+            `;
+        });
+        
+        // Add signature area
+        htmlContent += `
+            <div style="margin-top: 40px; display: flex; justify-content: space-between; page-break-inside: avoid;">
+                <div style="width: 45%;">
+                    <div style="border-top: 1px solid #000; padding-top: 5px; margin-top: 40px;">
+                        <p style="margin: 5px 0; font-size: 11pt;">${escapeHtml(data.teacherName)}</p>
+                        <p style="margin: 5px 0; font-size: 9pt; color: #666;">${data.language === 'en' ? 'Teacher\'s Signature' : '教師簽名'}</p>
+                    </div>
+                </div>
+                <div style="width: 45%;">
+                    <div style="border-top: 1px solid #000; padding-top: 5px; margin-top: 40px;">
+                        <p style="margin: 5px 0; font-size: 11pt;">${data.language === 'en' ? 'Date: ' : '日期：'}${formattedDate}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        tempContainer.innerHTML = htmlContent;
+        
+        // Wait for images to load
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Convert to canvas using html2canvas
+        const canvas = await html2canvas(tempContainer, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff'
+        });
+        
+        // Calculate PDF dimensions
+        const imgWidth = 210; // A4 width in mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        const pageHeight = 297; // A4 height in mm
+        
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+        
+        let heightLeft = imgHeight;
+        let position = 0;
+        
+        // Convert canvas to image
+        const imgData = canvas.toDataURL('image/png');
+        
+        // Add first page
+        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        
+        // Add additional pages if needed
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            doc.addPage();
+            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
         }
+        
+        // Add page numbers
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(9);
+            doc.setTextColor(100, 100, 100);
+            const footerText = data.language === 'en' 
+                ? `Page ${i} of ${totalPages}` 
+                : `第 ${i} 頁，共 ${totalPages} 頁`;
+            doc.text(footerText, 105, 287, { align: 'center' });
+        }
+        
+        // Save PDF
+        const filename = `Tutorial_Report_${data.studentName.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
+        doc.save(filename);
+        
+    } finally {
+        // Clean up temporary container
+        document.body.removeChild(tempContainer);
     }
-    
-    // Title
-    doc.setFontSize(24);
-    doc.setTextColor(...primaryBlue);
-    const titleLines = splitText(data.reportTitle, contentWidth);
-    doc.text(titleLines, pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += titleLines.length * 10 + 5;
-    
-    // Date
-    doc.setFontSize(12);
-    doc.setTextColor(...darkGray);
-    const dateText = (data.language === 'en' ? 'Date: ' : '日期：') + formattedDate;
-    doc.text(dateText, pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 15;
-    
-    // Student Information Box
-    checkPageBreak(30);
-    doc.setFillColor(...lightGray);
-    doc.roundedRect(margin, yPosition, contentWidth, 30, 3, 3, 'F');
-    
-    doc.setFontSize(14);
-    doc.setTextColor(...primaryBlue);
-    doc.setFont(undefined, 'bold');
-    const infoTitle = data.language === 'en' ? 'Student Information' : '學生資料';
-    doc.text(infoTitle, pageWidth / 2, yPosition + 8, { align: 'center' });
-    
-    yPosition += 12;
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont(undefined, 'normal');
-    
-    const studentInfo = [
-        (data.language === 'en' ? 'Name: ' : '姓名：') + data.studentName,
-        (data.language === 'en' ? 'Subject: ' : '科目：') + data.subject,
-        (data.language === 'en' ? 'Class/Grade: ' : '班級/年級：') + data.classGrade,
-        (data.language === 'en' ? 'Teacher: ' : '教師：') + data.teacherName
-    ];
-    
-    studentInfo.forEach((info, index) => {
-        doc.text(info, margin + 10, yPosition + (index * 5));
-    });
-    
-    yPosition += 35;
-    
-    // Section titles and content
-    const sections = [
-        {
-            title: data.language === 'en' 
-                ? 'Section 1: Academic Performance Assessment' 
-                : '第一部分：學業表現評估',
-            content: data.section1
-        },
-        {
-            title: data.language === 'en' 
-                ? 'Section 2: In-class Behavioral Performance' 
-                : '第二部分：課堂行為表現',
-            content: data.section2
-        },
-        {
-            title: data.language === 'en' 
-                ? 'Section 3: Learning Plan for Next 4 Lessons' 
-                : '第三部分：未來四節課學習計劃',
-            content: data.section3
-        },
-        {
-            title: data.language === 'en' 
-                ? 'Section 4: Teacher\'s Final Remarks & Action Items' 
-                : '第四部分：教師總結及行動項目',
-            content: data.section4
-        }
-    ];
-    
-    sections.forEach((section, index) => {
-        checkPageBreak(25);
-        
-        // Section title
-        doc.setFontSize(14);
-        doc.setTextColor(...primaryBlue);
-        doc.setFont(undefined, 'bold');
-        yPosition += 5;
-        
-        const titleLines = splitText(section.title, contentWidth);
-        doc.text(titleLines, margin, yPosition);
-        yPosition += titleLines.length * 7 + 3;
-        
-        // Section underline
-        doc.setDrawColor(...primaryBlue);
-        doc.setLineWidth(0.5);
-        doc.line(margin, yPosition - 2, pageWidth - margin, yPosition - 2);
-        yPosition += 5;
-        
-        // Section content
-        doc.setFontSize(11);
-        doc.setTextColor(0, 0, 0);
-        doc.setFont(undefined, 'normal');
-        
-        const contentText = stripHTML(section.content);
-        if (contentText.trim()) {
-            const contentLines = splitText(contentText, contentWidth);
-            checkPageBreak(contentLines.length * 5);
-            
-            contentLines.forEach(line => {
-                if (yPosition > pageHeight - margin - 10) {
-                    doc.addPage();
-                    yPosition = margin;
-                }
-                doc.text(line, margin, yPosition);
-                yPosition += 5;
-            });
-        } else {
-            const placeholder = data.language === 'en' ? 'No content provided.' : '未提供內容。';
-            doc.text(placeholder, margin, yPosition);
-            yPosition += 5;
-        }
-        
-        yPosition += 8;
-    });
-    
-    // Signature area
-    checkPageBreak(40);
-    yPosition += 10;
-    
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-    
-    // Teacher signature line
-    const signatureY = yPosition;
-    doc.line(margin, signatureY, margin + 60, signatureY);
-    doc.text(data.teacherName, margin, signatureY - 2);
-    doc.setFontSize(9);
-    doc.setTextColor(...darkGray);
-    const signatureLabel = data.language === 'en' ? 'Teacher\'s Signature' : '教師簽名';
-    doc.text(signatureLabel, margin, signatureY + 5);
-    
-    // Date signature line
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-    const dateLabel = (data.language === 'en' ? 'Date: ' : '日期：') + formattedDate;
-    doc.text(dateLabel, pageWidth - margin - 60, signatureY - 2);
-    doc.line(pageWidth - margin - 60, signatureY, pageWidth - margin, signatureY);
-    
-    // Footer on each page
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(9);
-        doc.setTextColor(...darkGray);
-        const footerText = data.language === 'en' 
-            ? `Page ${i} of ${totalPages}` 
-            : `第 ${i} 頁，共 ${totalPages} 頁`;
-        doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });
-    }
-    
-    // Save PDF
-    const filename = `Tutorial_Report_${data.studentName.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
-    doc.save(filename);
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Validate form
