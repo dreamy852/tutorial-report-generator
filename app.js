@@ -724,18 +724,6 @@ async function createPDFDocument(data) {
             heightLeft -= pageHeight;
         }
         
-        // Add page numbers
-        const totalPages = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            doc.setFontSize(9);
-            doc.setTextColor(100, 100, 100);
-            const footerText = data.language === 'en' 
-                ? `Page ${i} of ${totalPages}` 
-                : `第 ${i} 頁，共 ${totalPages} 頁`;
-            doc.text(footerText, 105, 287, { align: 'center' });
-        }
-        
         // Save PDF
         const filename = `Tutorial_Report_${data.studentName.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
         doc.save(filename);
@@ -925,19 +913,16 @@ function generateEnglishLaTeXTemplate(data, formattedDate, logoInclude, convertH
 \\usepackage{xcolor}
 \\usepackage{fancyhdr}
 \\usepackage{titlesec}
-\\usepackage{lastpage}
 
 % Colors
 \\definecolor{primaryblue}{RGB}{30, 64, 175}
 \\definecolor{lightgray}{RGB}{245, 245, 245}
 
-% Header and footer
+% Header
 \\pagestyle{fancy}
 \\fancyhf{}
 \\fancyhead[C]{\\textcolor{primaryblue}{\\textbf{Tutorial Report}}}
-\\fancyfoot[C]{\\textcolor{gray}{Page \\thepage\\ of \\pageref{LastPage}}}
 \\renewcommand{\\headrulewidth}{0.5pt}
-\\renewcommand{\\footrulewidth}{0.5pt}
 
 % Section formatting
 \\titleformat{\\section}
@@ -1035,7 +1020,6 @@ function generateChineseLaTeXTemplate(data, formattedDate, logoInclude, convertH
 \\usepackage{xcolor}
 \\usepackage{fancyhdr}
 \\usepackage{titlesec}
-\\usepackage{lastpage}
 \\usepackage{xeCJK}
 
 % Chinese font configuration
@@ -1047,13 +1031,11 @@ function generateChineseLaTeXTemplate(data, formattedDate, logoInclude, convertH
 \\definecolor{primaryblue}{RGB}{30, 64, 175}
 \\definecolor{lightgray}{RGB}{245, 245, 245}
 
-% Header and footer
+% Header
 \\pagestyle{fancy}
 \\fancyhf{}
 \\fancyhead[C]{\\textcolor{primaryblue}{\\textbf{補習報告}}}
-\\fancyfoot[C]{\\textcolor{gray}{第 \\thepage\\ 頁，共 \\pageref{LastPage} 頁}}
 \\renewcommand{\\headrulewidth}{0.5pt}
-\\renewcommand{\\footrulewidth}{0.5pt}
 
 % Section formatting
 \\titleformat{\\section}
