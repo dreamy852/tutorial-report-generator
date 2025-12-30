@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeEditors();
     initializeForm();
     setDefaultDate();
+    setDefaultTitle();
+    setDefaultSectionText();
     updatePreview();
 });
 
@@ -57,6 +59,51 @@ function setDefaultDate() {
     document.getElementById('reportDate').value = today;
 }
 
+// Set default report title
+function setDefaultTitle() {
+    const titleField = document.getElementById('reportTitle');
+    if (!titleField.value.trim()) {
+        titleField.value = currentLanguage === 'en' ? 'Student Progress Report' : '學生進度報告';
+        updatePreview();
+    }
+}
+
+// Set default text for sections
+function setDefaultSectionText() {
+    const defaultTexts = {
+        en: {
+            section1: 'The student has shown consistent effort in their academic work. They demonstrate a good understanding of the fundamental concepts covered in class.',
+            section2: 'The student displays positive behavior during class sessions. They are attentive, participate actively, and show respect towards peers and the teacher.',
+            section3: 'In the next four lessons, we will focus on reinforcing key concepts, practicing problem-solving skills, and preparing for upcoming assessments.',
+            section4: 'Overall, the student is making steady progress. Continued practice and engagement will help them achieve their learning goals. Action items: Complete assigned homework and review previous lessons.'
+        },
+        zh: {
+            section1: '學生在學業方面表現出持續的努力。他們對課堂上涵蓋的基本概念有良好的理解。',
+            section2: '學生在課堂上表現出積極的行為。他們專心聽講，積極參與，並對同學和老師表現出尊重。',
+            section3: '在接下來的四節課中，我們將重點加強關鍵概念，練習解決問題的技能，並為即將到來的評估做準備。',
+            section4: '總體而言，學生正在穩步進步。持續的練習和參與將幫助他們實現學習目標。行動項目：完成指定的作業並複習之前的課程。'
+        }
+    };
+    
+    const texts = defaultTexts[currentLanguage];
+    
+    // Only set default if section is empty
+    if (!quillEditors.section1.root.textContent.trim()) {
+        quillEditors.section1.setText(texts.section1);
+    }
+    if (!quillEditors.section2.root.textContent.trim()) {
+        quillEditors.section2.setText(texts.section2);
+    }
+    if (!quillEditors.section3.root.textContent.trim()) {
+        quillEditors.section3.setText(texts.section3);
+    }
+    if (!quillEditors.section4.root.textContent.trim()) {
+        quillEditors.section4.setText(texts.section4);
+    }
+    
+    updatePreview();
+}
+
 // Language switching
 function switchLanguage(lang) {
     currentLanguage = lang;
@@ -87,6 +134,15 @@ function switchLanguage(lang) {
             option.textContent = lang === 'en' ? option.dataset.en : option.dataset.zh;
         }
     });
+    
+    // Update default title if empty
+    const titleField = document.getElementById('reportTitle');
+    if (!titleField.value.trim()) {
+        titleField.value = lang === 'en' ? 'Student Progress Report' : '學生進度報告';
+    }
+    
+    // Update default section text when language changes
+    setDefaultSectionText();
     
     updatePreview();
 }
@@ -191,17 +247,35 @@ async function enhanceWithAI(sectionId, buttonElement) {
         const enhancedText = await enhanceTextWithDeepSeek(currentContent, currentLanguage);
         
         if (enhancedText) {
-            // Convert plain text to HTML format for Quill editor
-            // Split by newlines and create paragraphs
-            const htmlContent = enhancedText
-                .split('\n\n')
-                .map(paragraph => paragraph.trim())
-                .filter(paragraph => paragraph.length > 0)
-                .map(paragraph => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`)
-                .join('');
+            // Strip any formatting that might have been returned (bold, italic, markdown, etc.)
+            let plainText = enhancedText
+                // Remove markdown formatting
+                .replace(/\*\*(.*?)\*\*/g, '$1')  // Bold
+                .replace(/\*(.*?)\*/g, '$1')      // Italic
+                .replace(/__(.*?)__/g, '$1')      // Bold underscore
+                .replace(/_(.*?)_/g, '$1')         // Italic underscore
+                .replace(/#{1,6}\s*(.*?)$/gm, '$1') // Headers
+                .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Links
+                // Remove HTML tags if any
+                .replace(/<[^>]+>/g, '')
+                .replace(/&nbsp;/g, ' ')
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .trim();
             
-            // Replace the current content with enhanced content
-            editor.root.innerHTML = htmlContent || `<p>${enhancedText}</p>`;
+            // Split into paragraphs and create simple HTML
+            const paragraphs = plainText
+                .split(/\n\n+/)
+                .map(p => p.trim())
+                .filter(p => p.length > 0);
+            
+            const htmlContent = paragraphs.length > 0
+                ? paragraphs.map(p => `<p>${p.replace(/\n/g, ' ')}</p>`).join('')
+                : `<p>${plainText}</p>`;
+            
+            // Replace the current content with enhanced plain text content
+            editor.root.innerHTML = htmlContent;
             updatePreview();
             
             alert(currentLanguage === 'en' 
@@ -250,15 +324,15 @@ async function enhanceTextWithDeepSeek(textSection, language = 'en') {
             : '文字內容不能為空');
     }
     
-    // Build prompt based on language
+    // Build prompt based on language with word limits and plain text requirement
     const prompt = language === 'en'
-        ? `As an experienced teacher, improve this student assessment section to be more professional and constructive: ${textSection}`
-        : `作為一位經驗豐富的教師，請改進這段學生評估內容，使其更加專業和建設性：${textSection}`;
+        ? `As an experienced teacher, improve this student assessment section to be more professional and constructive. Write ONLY plain text (no bold, italic, underline, headers, or formatting). Keep it between 50-100 words. Original text: ${textSection}`
+        : `作為一位經驗豐富的教師，請改進這段學生評估內容，使其更加專業和建設性。只寫純文字（不要粗體、斜體、底線、標題或任何格式）。保持在40-80個中文字。原文：${textSection}`;
     
     // System message based on language
     const systemMessage = language === 'en'
-        ? 'You are an experienced teacher and educational assessment writer. Your task is to improve student assessment sections to be more professional, constructive, and helpful. Maintain the original meaning while enhancing clarity, professionalism, and educational value.'
-        : '你是一位經驗豐富的教師和教育評估撰寫者。你的任務是改進學生評估內容，使其更加專業、建設性和有幫助。在保持原意的同時，增強清晰度、專業性和教育價值。';
+        ? 'You are an experienced teacher and educational assessment writer. Your task is to improve student assessment sections to be more professional, constructive, and helpful. IMPORTANT: Return ONLY plain text with no formatting (no bold, italic, underline, headers, sections, or markdown). Keep responses between 50-100 words. Maintain the original meaning while enhancing clarity, professionalism, and educational value.'
+        : '你是一位經驗豐富的教師和教育評估撰寫者。你的任務是改進學生評估內容，使其更加專業、建設性和有幫助。重要：只返回純文字，不要任何格式（不要粗體、斜體、底線、標題、章節或標記）。保持在40-80個中文字。在保持原意的同時，增強清晰度、專業性和教育價值。';
     
     try {
         const response = await fetch(API_URL, {
@@ -280,7 +354,7 @@ async function enhanceTextWithDeepSeek(textSection, language = 'en') {
                     }
                 ],
                 temperature: 0.7,
-                max_tokens: 2000,
+                max_tokens: language === 'en' ? 150 : 120, // Limit tokens for word count control
                 top_p: 0.95,
                 frequency_penalty: 0.3,
                 presence_penalty: 0.3
@@ -304,12 +378,52 @@ async function enhanceTextWithDeepSeek(textSection, language = 'en') {
                 : 'API 回應格式無效');
         }
         
-        const enhancedText = data.choices[0].message.content.trim();
+        let enhancedText = data.choices[0].message.content.trim();
         
         if (!enhancedText) {
             throw new Error(language === 'en' 
                 ? 'Empty response from API' 
                 : 'API 回應為空');
+        }
+        
+        // Strip any formatting that might have been returned
+        enhancedText = enhancedText
+            .replace(/\*\*(.*?)\*\*/g, '$1')  // Bold markdown
+            .replace(/\*(.*?)\*/g, '$1')      // Italic markdown
+            .replace(/__(.*?)__/g, '$1')      // Bold underscore
+            .replace(/_([^_]+)_/g, '$1')      // Italic underscore
+            .replace(/#{1,6}\s*(.*?)$/gm, '$1') // Headers
+            .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Links
+            .replace(/<[^>]+>/g, '')           // HTML tags
+            .trim();
+        
+        // Enforce word count limits
+        if (language === 'en') {
+            const words = enhancedText.split(/\s+/).filter(w => w.length > 0);
+            if (words.length > 100) {
+                // Trim to 100 words
+                enhancedText = words.slice(0, 100).join(' ');
+            } else if (words.length < 50 && words.length > 0) {
+                // If too short, keep as is (API might have been conservative)
+                // Could add a note, but for now just return
+            }
+        } else {
+            // For Chinese, count characters (roughly 1-2 chars per word)
+            const chars = enhancedText.replace(/\s+/g, '').length;
+            if (chars > 160) { // 80 words * 2 chars per word
+                // Trim to approximately 80 words (160 chars)
+                enhancedText = enhancedText.substring(0, 160);
+                // Find last complete sentence or word boundary
+                const lastPeriod = enhancedText.lastIndexOf('。');
+                const lastComma = enhancedText.lastIndexOf('，');
+                const lastSpace = enhancedText.lastIndexOf(' ');
+                const cutPoint = Math.max(lastPeriod, lastComma, lastSpace);
+                if (cutPoint > 120) {
+                    enhancedText = enhancedText.substring(0, cutPoint + 1);
+                }
+            } else if (chars < 80 && chars > 0) {
+                // If too short, keep as is
+            }
         }
         
         return enhancedText;
