@@ -8,39 +8,10 @@
    - 訪問 https://script.google.com
    - 點擊「新增專案」
 
-2. **複製並貼上以下代碼**
-
-```javascript
-function doPost(e) {
-  try {
-    // 獲取表單數據
-    const teacherName = e.parameter.teacherName;
-    const studentName = e.parameter.studentName;
-    const classGrade = e.parameter.classGrade;
-    const subject = e.parameter.subject;
-    
-    // 打開 Google Sheets（替換為您的表格 ID）
-    const sheetId = '1M4mRBujj-mx4eHHNl55RrgfA-SqVLaVoubnQ58MmKLU';
-    const sheet = SpreadsheetApp.openById(sheetId).getActiveSheet();
-    
-    // 添加新行：教師姓名 | 學生姓名 | 班級/年級 | 科目
-    sheet.appendRow([teacherName, studentName, classGrade, subject]);
-    
-    // 返回成功響應
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      message: 'Data added successfully'
-    })).setMimeType(ContentService.MimeType.JSON);
-    
-  } catch (error) {
-    // 返回錯誤響應
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      error: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-```
+2. **複製代碼文件**
+   - 打開項目中的 `google-apps-script.gs` 文件
+   - 複製整個文件內容
+   - 貼上到 Google Apps Script 編輯器中
 
 3. **修改表格 ID**
    - 在代碼中找到 `const sheetId = '1M4mRBujj-mx4eHHNl55RrgfA-SqVLaVoubnQ58MmKLU';`
