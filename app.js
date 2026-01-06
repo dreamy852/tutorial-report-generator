@@ -3,13 +3,136 @@ let currentLanguage = 'en';
 let quillEditors = {};
 let logoBase64 = '';
 
+// Cookie utility functions
+function setCookie(name, value, days = 365) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    const expires = `expires=${date.toUTCString()}`;
+    document.cookie = `${name}=${encodeURIComponent(value)};${expires};path=/`;
+}
+
+function getCookie(name) {
+    const nameEQ = name + '=';
+    const ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) === 0) {
+            return decodeURIComponent(c.substring(nameEQ.length, c.length));
+        }
+    }
+    return null;
+}
+
+function deleteCookie(name) {
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+}
+
+// Save form data to cookie
+function saveFormDataToCookie() {
+    try {
+        const formData = {
+            studentName: document.getElementById('studentName').value || '',
+            subject: document.getElementById('subject').value || '',
+            classGrade: document.getElementById('classGrade').value || '',
+            reportTitle: document.getElementById('reportTitle').value || '',
+            reportDate: document.getElementById('reportDate').value || '',
+            teacherName: document.getElementById('teacherName').value || '',
+            section1: quillEditors.section1 ? quillEditors.section1.root.innerHTML : '',
+            section2: quillEditors.section2 ? quillEditors.section2.root.innerHTML : '',
+            section3: quillEditors.section3 ? quillEditors.section3.root.innerHTML : '',
+            section4: quillEditors.section4 ? quillEditors.section4.root.innerHTML : '',
+            language: currentLanguage
+        };
+        
+        const jsonData = JSON.stringify(formData);
+        setCookie('reportFormData', jsonData, 365); // Store for 1 year
+    } catch (error) {
+        console.warn('Failed to save form data to cookie:', error);
+    }
+}
+
+// Load form data from cookie
+function loadFormDataFromCookie() {
+    try {
+        const cookieData = getCookie('reportFormData');
+        if (!cookieData) return false;
+        
+        const formData = JSON.parse(cookieData);
+        
+        // Restore input fields
+        if (formData.studentName) document.getElementById('studentName').value = formData.studentName;
+        if (formData.subject) document.getElementById('subject').value = formData.subject;
+        if (formData.classGrade) document.getElementById('classGrade').value = formData.classGrade;
+        if (formData.reportTitle) document.getElementById('reportTitle').value = formData.reportTitle;
+        if (formData.reportDate) document.getElementById('reportDate').value = formData.reportDate;
+        if (formData.teacherName) document.getElementById('teacherName').value = formData.teacherName;
+        
+        // Restore Quill editor content (only if editors are initialized)
+        if (quillEditors.section1 && formData.section1) {
+            quillEditors.section1.root.innerHTML = formData.section1;
+        }
+        if (quillEditors.section2 && formData.section2) {
+            quillEditors.section2.root.innerHTML = formData.section2;
+        }
+        if (quillEditors.section3 && formData.section3) {
+            quillEditors.section3.root.innerHTML = formData.section3;
+        }
+        if (quillEditors.section4 && formData.section4) {
+            quillEditors.section4.root.innerHTML = formData.section4;
+        }
+        
+        // Restore language (do this last to avoid triggering unnecessary updates)
+        if (formData.language && formData.language !== currentLanguage) {
+            currentLanguage = formData.language;
+            // Update UI without triggering save (we'll save after)
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.lang === formData.language) {
+                    btn.classList.add('active');
+                }
+            });
+            // Update translatable elements
+            document.querySelectorAll('[data-en][data-zh]').forEach(element => {
+                const text = formData.language === 'en' ? element.dataset.en : element.dataset.zh;
+                if (element.tagName === 'INPUT' || element.tagName === 'SELECT') {
+                    if (element.type === 'button' || element.type === 'submit') {
+                        element.value = text;
+                    }
+                } else {
+                    element.textContent = text;
+                }
+            });
+            document.querySelectorAll('select option').forEach(option => {
+                if (option.dataset.en && option.dataset.zh) {
+                    option.textContent = formData.language === 'en' ? option.dataset.en : option.dataset.zh;
+                }
+            });
+        }
+        
+        return true;
+    } catch (error) {
+        console.warn('Failed to load form data from cookie:', error);
+        return false;
+    }
+}
+
 // Initialize Quill editors and form
 document.addEventListener('DOMContentLoaded', function() {
     initializeEditors();
     initializeForm();
-    setDefaultDate();
-    setDefaultTitle();
-    setDefaultSectionText();
+    
+    // Try to load data from cookie first
+    const dataLoaded = loadFormDataFromCookie();
+    
+    if (!dataLoaded) {
+        // Only set defaults if no cookie data was found
+        setDefaultDate();
+        setDefaultTitle();
+        setDefaultSectionText();
+    }
+    
+    loadDefaultLogo();
     updatePreview();
 });
 
@@ -35,9 +158,10 @@ function initializeEditors() {
         
         quillEditors[sectionId] = editor;
         
-        // Update preview on content change
+        // Update preview and save to cookie on content change
         editor.on('text-change', function() {
             updatePreview();
+            saveFormDataToCookie();
         });
     });
 }
@@ -48,8 +172,14 @@ function initializeForm() {
     const inputs = form.querySelectorAll('input, select');
     
     inputs.forEach(input => {
-        input.addEventListener('input', updatePreview);
-        input.addEventListener('change', updatePreview);
+        input.addEventListener('input', function() {
+            updatePreview();
+            saveFormDataToCookie();
+        });
+        input.addEventListener('change', function() {
+            updatePreview();
+            saveFormDataToCookie();
+        });
     });
 }
 
@@ -63,7 +193,7 @@ function setDefaultDate() {
 function setDefaultTitle() {
     const titleField = document.getElementById('reportTitle');
     if (!titleField.value.trim()) {
-        titleField.value = currentLanguage === 'en' ? 'Student Progress Report' : '學生進度報告';
+        titleField.value = '學生進度報告';
         updatePreview();
     }
 }
@@ -138,29 +268,42 @@ function switchLanguage(lang) {
     // Update default title if empty
     const titleField = document.getElementById('reportTitle');
     if (!titleField.value.trim()) {
-        titleField.value = lang === 'en' ? 'Student Progress Report' : '學生進度報告';
+        titleField.value = '學生進度報告';
     }
     
     // Update default section text when language changes
     setDefaultSectionText();
     
+    // Save language preference to cookie
+    saveFormDataToCookie();
+    
     updatePreview();
 }
 
-// Logo preview
-function previewLogo(event) {
-    const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            logoBase64 = e.target.result;
-            const preview = document.getElementById('logoPreview');
-            preview.innerHTML = `<img src="${logoBase64}" alt="School Logo">`;
-            preview.style.display = 'block';
+// Load default logo
+function loadDefaultLogo() {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        try {
+            logoBase64 = canvas.toDataURL('image/png');
             updatePreview();
-        };
-        reader.readAsDataURL(file);
-    }
+        } catch (error) {
+            console.warn('Could not convert logo to base64, using file path instead');
+            // Fallback: use file path
+            logoBase64 = 'logo.png';
+        }
+    };
+    img.onerror = function() {
+        console.warn('Could not load logo.png, using file path instead');
+        logoBase64 = 'logo.png';
+    };
+    img.src = 'logo.png';
 }
 
 // Update live preview
@@ -277,6 +420,7 @@ async function enhanceWithAI(sectionId, buttonElement) {
             // Replace the current content with enhanced plain text content
             editor.root.innerHTML = htmlContent;
             updatePreview();
+            saveFormDataToCookie(); // Save to cookie after AI enhancement
             
             alert(currentLanguage === 'en' 
                 ? 'Content enhanced successfully!' 
@@ -303,19 +447,9 @@ async function enhanceWithAI(sectionId, buttonElement) {
  */
 async function enhanceTextWithDeepSeek(textSection, language = 'en') {
     // DeepSeek API Configuration
-    // Get API key from form field
-    const apiKeyField = document.getElementById('deepseekApiKey');
-    const API_KEY = apiKeyField ? apiKeyField.value.trim() : '';
+    // Use default API key
+    const API_KEY = 'sk-0fdaddd9f0db4e70821938381de23af6';
     const API_URL = 'https://api.deepseek.com/v1/chat/completions';
-    
-    // Validate API key
-    if (!API_KEY || API_KEY === '') {
-        console.warn('DeepSeek API key not configured. Using mock enhancement.');
-        // Return mock enhanced text for demonstration
-        return language === 'en' 
-            ? `[Enhanced Version]\n\n${textSection}\n\n[Note: Please enter your DeepSeek API key in the form to enable real AI enhancement]`
-            : `[增強版本]\n\n${textSection}\n\n[注意：請在表單中輸入您的 DeepSeek API 金鑰以啟用真實的 AI 增強功能]`;
-    }
     
     // Validate input
     if (!textSection || textSection.trim().length === 0) {
@@ -473,10 +607,15 @@ function clearForm() {
             editor.setText('');
         });
         
-        // Clear logo preview
-        logoBase64 = '';
-        document.getElementById('logoPreview').style.display = 'none';
-        document.getElementById('logoPreview').innerHTML = '';
+        // Reset logo to default
+        loadDefaultLogo();
+        
+        // Clear cookie
+        deleteCookie('reportFormData');
+        
+        // Set defaults again
+        setDefaultTitle();
+        setDefaultSectionText();
         
         updatePreview();
     }
@@ -504,22 +643,20 @@ async function generateReport(buttonElement) {
         // Download LaTeX file
         downloadFile(latexResult.latex, 'report.tex', 'text/plain');
         
-        // If logo exists, save it as a separate file
-        if (latexResult.logoBase64 && latexResult.logoFileName) {
-            saveLogoFile(latexResult.logoBase64, latexResult.logoFileName);
-        }
+        // Logo file (logo.png) should be in the same folder as report.tex
+        // No need to save separately as it's already a file
         
         // Show success message with compilation instructions
         const instructions = currentLanguage === 'en'
-            ? `LaTeX file generated successfully!\n\nTo compile to PDF:\n1. Use XeLaTeX compiler (required for Chinese support)\n2. Place ${latexResult.logoFileName ? latexResult.logoFileName + ' in the same folder as report.tex' : 'report.tex'} in your LaTeX editor\n3. Compile using XeLaTeX\n\nOr use Overleaf.com and upload both files.`
-            : `LaTeX 檔案生成成功！\n\n編譯為 PDF 的方法：\n1. 使用 XeLaTeX 編譯器（中文支援必需）\n2. 將 ${latexResult.logoFileName ? latexResult.logoFileName + ' 和 report.tex 放在同一資料夾' : 'report.tex'} 放入 LaTeX 編輯器\n3. 使用 XeLaTeX 編譯\n\n或使用 Overleaf.com 上傳兩個檔案。`;
+            ? `LaTeX file generated successfully!\n\nTo compile to PDF:\n1. Use XeLaTeX compiler (required for Chinese support)\n2. Place logo.png and report.tex in the same folder in your LaTeX editor\n3. Compile using XeLaTeX\n\nOr use Overleaf.com and upload both files.`
+            : `LaTeX 檔案生成成功！\n\n編譯為 PDF 的方法：\n1. 使用 XeLaTeX 編譯器（中文支援必需）\n2. 將 logo.png 和 report.tex 放在同一資料夾放入 LaTeX 編輯器\n3. 使用 XeLaTeX 編譯\n\n或使用 Overleaf.com 上傳兩個檔案。`;
         
         alert(instructions);
         
         showMessage(
             currentLanguage === 'en' 
-                ? 'LaTeX file and logo generated successfully! Check your downloads.' 
-                : 'LaTeX 檔案和標誌生成成功！請檢查您的下載資料夾。',
+                ? 'LaTeX file generated successfully! Make sure logo.png is in the same folder as report.tex.' 
+                : 'LaTeX 檔案生成成功！請確保 logo.png 與 report.tex 在同一資料夾。',
             'success'
         );
         
@@ -871,23 +1008,20 @@ function generateLaTeXTemplate(data) {
             .replace(/~/g, '\\textasciitilde{}');
     };
     
-    // Handle logo - save as separate file if provided
+    // Handle logo - always use logo.png
     let logoInclude = '';
-    let logoFileName = '';
-    if (data.logo && data.logo.trim() !== '') {
-        logoFileName = 'school_logo.png';
-        logoInclude = data.language === 'en'
-            ? `\\begin{figure}[h]
+    let logoFileName = 'logo.png';
+    logoInclude = data.language === 'en'
+        ? `\\begin{figure}[h]
     \\centering
     \\includegraphics[width=0.3\\textwidth]{${logoFileName}}
 \\end{figure}
 \\vspace{0.5cm}`
-            : `\\begin{figure}[h]
+        : `\\begin{figure}[h]
     \\centering
     \\includegraphics[width=0.3\\textwidth]{${logoFileName}}
 \\end{figure}
 \\vspace{0.5cm}`;
-    }
     
     // Generate LaTeX document based on language
     const latexContent = data.language === 'en' 
@@ -897,7 +1031,7 @@ function generateLaTeXTemplate(data) {
     return {
         latex: latexContent,
         logoBase64: data.logo,
-        logoFileName: logoFileName
+        logoFileName: logoFileName // Always 'logo.png'
     };
 }
 
