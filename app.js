@@ -214,25 +214,57 @@ function initializeEditors() {
 
 // Load Google Sheets data
 async function loadGoogleSheetsData() {
+    console.log('=== Starting to load Google Sheets data ===');
+    console.log('Sheet ID:', googleSheetId);
+    
     try {
         // Use Google Sheets JSON API (public sheet)
         const sheetId = googleSheetId;
         const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
         
+        console.log('Fetching URL:', url);
+        
         const response = await fetch(url);
+        console.log('Response status:', response.status, response.statusText);
+        console.log('Response ok:', response.ok);
+        
         if (!response.ok) {
-            throw new Error('Failed to load Google Sheets data');
+            throw new Error(`Failed to load Google Sheets data: ${response.status} ${response.statusText}`);
         }
         
         const text = await response.text();
+        console.log('Response text length:', text.length);
+        console.log('Response text preview (first 200 chars):', text.substring(0, 200));
+        
         // Remove the prefix "google.visualization.Query.setResponse(" and suffix ");"
-        const jsonText = text.substring(47, text.length - 2);
+        let jsonText;
+        try {
+            jsonText = text.substring(47, text.length - 2);
+            console.log('Extracted JSON text length:', jsonText.length);
+        } catch (parseError) {
+            console.error('Error extracting JSON from response:', parseError);
+            console.log('Full response text:', text);
+            throw new Error('Failed to extract JSON from response');
+        }
+        
         const data = JSON.parse(jsonText);
+        console.log('Parsed data structure:', {
+            hasTable: !!data.table,
+            hasRows: !!(data.table && data.table.rows),
+            rowCount: data.table ? data.table.rows.length : 0,
+            colCount: data.table ? data.table.cols.length : 0
+        });
+        
+        // Reset teachersData
+        teachersData = {};
         
         // Parse the data into teachersData structure
         if (data.table && data.table.rows) {
             const rows = data.table.rows;
             const cols = data.table.cols;
+            
+            console.log('Total rows:', rows.length);
+            console.log('Total columns:', cols.length);
             
             // Find column indices (assuming first row is header)
             let teacherColIndex = -1;
@@ -242,29 +274,64 @@ async function loadGoogleSheetsData() {
             
             // Get header row to find column indices
             if (rows.length > 0 && rows[0].c) {
+                console.log('Header row cells:', rows[0].c.map((cell, idx) => ({
+                    index: idx,
+                    value: cell ? cell.v : null,
+                    label: cell ? cell.f : null
+                })));
+                
                 rows[0].c.forEach((cell, index) => {
                     const cellValue = cell ? (cell.v || '').toString().toLowerCase() : '';
+                    console.log(`Header cell [${index}]:`, cellValue);
+                    
                     if (cellValue.includes('教師') || cellValue.includes('teacher')) {
                         teacherColIndex = index;
-                    } else if (cellValue.includes('學生姓名') || cellValue.includes('student name')) {
+                        console.log(`Found teacher column at index: ${index}`);
+                    } else if (cellValue.includes('學生姓名') || cellValue.includes('student name') || cellValue.includes('學生')) {
                         studentNameColIndex = index;
+                        console.log(`Found student name column at index: ${index}`);
                     } else if (cellValue.includes('科目') || cellValue.includes('subject')) {
                         subjectColIndex = index;
+                        console.log(`Found subject column at index: ${index}`);
                     } else if (cellValue.includes('班級') || cellValue.includes('年級') || cellValue.includes('class') || cellValue.includes('grade')) {
                         classGradeColIndex = index;
+                        console.log(`Found class/grade column at index: ${index}`);
                     }
                 });
             }
             
+            console.log('Column indices found:', {
+                teacher: teacherColIndex,
+                studentName: studentNameColIndex,
+                subject: subjectColIndex,
+                classGrade: classGradeColIndex
+            });
+            
             // Parse data rows (skip header)
+            let processedRows = 0;
+            let skippedRows = 0;
+            
             for (let i = 1; i < rows.length; i++) {
                 const row = rows[i].c;
-                if (!row) continue;
+                if (!row) {
+                    skippedRows++;
+                    continue;
+                }
                 
                 const teacher = teacherColIndex >= 0 && row[teacherColIndex] ? (row[teacherColIndex].v || '').toString().trim() : '';
                 const studentName = studentNameColIndex >= 0 && row[studentNameColIndex] ? (row[studentNameColIndex].v || '').toString().trim() : '';
                 const subject = subjectColIndex >= 0 && row[subjectColIndex] ? (row[subjectColIndex].v || '').toString().trim() : '';
                 const classGrade = classGradeColIndex >= 0 && row[classGradeColIndex] ? (row[classGradeColIndex].v || '').toString().trim() : '';
+                
+                if (i <= 5) {
+                    console.log(`Row ${i} data:`, {
+                        teacher,
+                        studentName,
+                        subject,
+                        classGrade,
+                        rawCells: row.map(cell => cell ? cell.v : null)
+                    });
+                }
                 
                 if (teacher && studentName) {
                     if (!teachersData[teacher]) {
@@ -275,15 +342,39 @@ async function loadGoogleSheetsData() {
                         subject: subject,
                         classGrade: classGrade
                     });
+                    processedRows++;
+                } else {
+                    if (i <= 5) {
+                        console.log(`Row ${i} skipped - missing teacher or student name`);
+                    }
+                    skippedRows++;
                 }
             }
+            
+            console.log('Data processing summary:', {
+                processedRows,
+                skippedRows,
+                teachersCount: Object.keys(teachersData).length,
+                teachersData: Object.keys(teachersData).map(teacher => ({
+                    teacher,
+                    studentsCount: teachersData[teacher].length
+                }))
+            });
+        } else {
+            console.warn('No table or rows found in data');
+            console.log('Data structure:', data);
         }
         
         // Populate teacher dropdown
+        console.log('Populating teacher dropdown...');
         populateTeacherDropdown();
+        console.log('=== Finished loading Google Sheets data ===');
         
     } catch (error) {
-        console.error('Error loading Google Sheets data:', error);
+        console.error('=== Error loading Google Sheets data ===');
+        console.error('Error type:', error.constructor.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
         // Still populate dropdown with empty state
         populateTeacherDropdown();
     }
