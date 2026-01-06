@@ -327,25 +327,36 @@ function populateTeacherDropdown() {
 // Handle teacher selection
 function handleTeacherSelection(teacherValue) {
     const teacherSelect = document.getElementById('teacherSelect');
-    const studentSelect = document.getElementById('studentSelect');
     const teacherNameField = document.getElementById('teacherName');
     
     if (teacherValue) {
         // Set teacher name
         teacherNameField.value = teacherValue;
         
-        // Populate student dropdown
-        populateStudentDropdown(teacherValue);
-        studentSelect.disabled = false;
+        // Populate student dropdown and get the new element reference
+        const newStudentSelect = populateStudentDropdown(teacherValue);
+        // Enable the student dropdown after populating
+        if (newStudentSelect) {
+            newStudentSelect.disabled = false;
+        } else {
+            // Fallback: get the element again if populateStudentDropdown didn't return it
+            const studentSelect = document.getElementById('studentSelect');
+            if (studentSelect) {
+                studentSelect.disabled = false;
+            }
+        }
         
         // Save to cookie
         saveFormDataToCookie();
         updatePreview();
     } else {
         // Reset student dropdown
-        studentSelect.disabled = true;
-        const placeholderText = currentLanguage === 'en' ? '-- Please select teacher first --' : '-- 請先選擇教師 --';
-        studentSelect.innerHTML = `<option value="">${placeholderText}</option>`;
+        const studentSelect = document.getElementById('studentSelect');
+        if (studentSelect) {
+            studentSelect.disabled = true;
+            const placeholderText = currentLanguage === 'en' ? '-- Please select teacher first --' : '-- 請先選擇教師 --';
+            studentSelect.innerHTML = `<option value="">${placeholderText}</option>`;
+        }
         teacherNameField.value = '';
         updatePreview();
     }
@@ -356,8 +367,9 @@ function populateStudentDropdown(teacherName) {
     const studentSelect = document.getElementById('studentSelect');
     if (!studentSelect) return;
     
-    // Store current selection
+    // Store current selection and disabled state
     const currentValue = studentSelect.value;
+    const wasDisabled = studentSelect.disabled;
     
     // Clear existing options
     const placeholderText = currentLanguage === 'en' ? '-- Please select student --' : '-- 請選擇學生 --';
@@ -381,11 +393,16 @@ function populateStudentDropdown(teacherName) {
     
     // Remove existing event listeners and add new one
     const newStudentSelect = studentSelect.cloneNode(true);
+    // Preserve disabled state
+    newStudentSelect.disabled = wasDisabled;
     studentSelect.parentNode.replaceChild(newStudentSelect, studentSelect);
     
     newStudentSelect.addEventListener('change', function() {
         handleStudentSelection(this.value, teacherName);
     });
+    
+    // Return the new element reference
+    return newStudentSelect;
 }
 
 // Handle student selection
