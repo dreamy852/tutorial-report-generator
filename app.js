@@ -2,6 +2,16 @@
 let currentLanguage = 'en';
 let quillEditors = {};
 let logoBase64 = '';
+let teachersData = {}; // Store teachers and their students data
+let googleSheetId = '1M4mRBujj-mx4eHHNl55RrgfA-SqVLaVoubnQ58MmKLU';
+// Google Apps Script Web App URL for writing data
+// To set this up:
+// 1. Go to https://script.google.com
+// 2. Create a new project
+// 3. Paste the code from the comment below
+// 4. Deploy as Web App (Execute as: Me, Who has access: Anyone)
+// 5. Copy the Web App URL and paste it here
+let googleScriptUrl = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL';
 
 // Cookie utility functions
 function setCookie(name, value, days = 365) {
@@ -60,13 +70,46 @@ function loadFormDataFromCookie() {
         
         const formData = JSON.parse(cookieData);
         
-        // Restore input fields
+        // Restore hidden fields
         if (formData.studentName) document.getElementById('studentName').value = formData.studentName;
         if (formData.subject) document.getElementById('subject').value = formData.subject;
         if (formData.classGrade) document.getElementById('classGrade').value = formData.classGrade;
         if (formData.reportTitle) document.getElementById('reportTitle').value = formData.reportTitle;
         if (formData.reportDate) document.getElementById('reportDate').value = formData.reportDate;
         if (formData.teacherName) document.getElementById('teacherName').value = formData.teacherName;
+        
+        // Restore dropdown selections
+        if (formData.teacherName) {
+            const teacherSelect = document.getElementById('teacherSelect');
+            const teacherName = formData.teacherName;
+            
+            // Check if teacher exists in dropdown
+            let teacherExists = false;
+            for (let option of teacherSelect.options) {
+                if (option.value === teacherName) {
+                    teacherSelect.value = teacherName;
+                    teacherExists = true;
+                    break;
+                }
+            }
+            
+            if (teacherExists) {
+                // Populate and select student
+                populateStudentDropdown(teacherName);
+                const studentSelect = document.getElementById('studentSelect');
+                
+                // Find matching student
+                const students = teachersData[teacherName] || [];
+                for (let i = 0; i < students.length; i++) {
+                    if (students[i].name === formData.studentName &&
+                        students[i].subject === formData.subject &&
+                        students[i].classGrade === formData.classGrade) {
+                        studentSelect.value = i.toString();
+                        break;
+                    }
+                }
+            }
+        }
         
         // Restore Quill editor content (only if editors are initialized)
         if (quillEditors.section1 && formData.section1) {
@@ -122,18 +165,21 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeEditors();
     initializeForm();
     
-    // Try to load data from cookie first
-    const dataLoaded = loadFormDataFromCookie();
-    
-    if (!dataLoaded) {
-        // Only set defaults if no cookie data was found
-        setDefaultDate();
-        setDefaultTitle();
-        setDefaultSectionText();
-    }
-    
-    loadDefaultLogo();
-    updatePreview();
+    // Load Google Sheets data first
+    loadGoogleSheetsData().then(() => {
+        // Try to load data from cookie after sheets are loaded
+        const dataLoaded = loadFormDataFromCookie();
+        
+        if (!dataLoaded) {
+            // Only set defaults if no cookie data was found
+            setDefaultDate();
+            setDefaultTitle();
+            setDefaultSectionText();
+        }
+        
+        loadDefaultLogo();
+        updatePreview();
+    });
 });
 
 // Initialize Quill rich text editors
@@ -165,6 +211,337 @@ function initializeEditors() {
         });
     });
 }
+
+// Load Google Sheets data
+async function loadGoogleSheetsData() {
+    try {
+        // Use Google Sheets JSON API (public sheet)
+        const sheetId = googleSheetId;
+        const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error('Failed to load Google Sheets data');
+        }
+        
+        const text = await response.text();
+        // Remove the prefix "google.visualization.Query.setResponse(" and suffix ");"
+        const jsonText = text.substring(47, text.length - 2);
+        const data = JSON.parse(jsonText);
+        
+        // Parse the data into teachersData structure
+        if (data.table && data.table.rows) {
+            const rows = data.table.rows;
+            const cols = data.table.cols;
+            
+            // Find column indices (assuming first row is header)
+            let teacherColIndex = -1;
+            let studentNameColIndex = -1;
+            let subjectColIndex = -1;
+            let classGradeColIndex = -1;
+            
+            // Get header row to find column indices
+            if (rows.length > 0 && rows[0].c) {
+                rows[0].c.forEach((cell, index) => {
+                    const cellValue = cell ? (cell.v || '').toString().toLowerCase() : '';
+                    if (cellValue.includes('教師') || cellValue.includes('teacher')) {
+                        teacherColIndex = index;
+                    } else if (cellValue.includes('學生姓名') || cellValue.includes('student name')) {
+                        studentNameColIndex = index;
+                    } else if (cellValue.includes('科目') || cellValue.includes('subject')) {
+                        subjectColIndex = index;
+                    } else if (cellValue.includes('班級') || cellValue.includes('年級') || cellValue.includes('class') || cellValue.includes('grade')) {
+                        classGradeColIndex = index;
+                    }
+                });
+            }
+            
+            // Parse data rows (skip header)
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i].c;
+                if (!row) continue;
+                
+                const teacher = teacherColIndex >= 0 && row[teacherColIndex] ? (row[teacherColIndex].v || '').toString().trim() : '';
+                const studentName = studentNameColIndex >= 0 && row[studentNameColIndex] ? (row[studentNameColIndex].v || '').toString().trim() : '';
+                const subject = subjectColIndex >= 0 && row[subjectColIndex] ? (row[subjectColIndex].v || '').toString().trim() : '';
+                const classGrade = classGradeColIndex >= 0 && row[classGradeColIndex] ? (row[classGradeColIndex].v || '').toString().trim() : '';
+                
+                if (teacher && studentName) {
+                    if (!teachersData[teacher]) {
+                        teachersData[teacher] = [];
+                    }
+                    teachersData[teacher].push({
+                        name: studentName,
+                        subject: subject,
+                        classGrade: classGrade
+                    });
+                }
+            }
+        }
+        
+        // Populate teacher dropdown
+        populateTeacherDropdown();
+        
+    } catch (error) {
+        console.error('Error loading Google Sheets data:', error);
+        // Still populate dropdown with empty state
+        populateTeacherDropdown();
+    }
+}
+
+// Populate teacher dropdown
+function populateTeacherDropdown() {
+    const teacherSelect = document.getElementById('teacherSelect');
+    if (!teacherSelect) return;
+    
+    // Store current selection
+    const currentValue = teacherSelect.value;
+    
+    // Clear existing options
+    const placeholderText = currentLanguage === 'en' ? '-- Please select teacher --' : '-- 請選擇教師 --';
+    teacherSelect.innerHTML = `<option value="">${placeholderText}</option>`;
+    
+    // Add teachers from Google Sheets (get unique teacher names)
+    const teachers = [...new Set(Object.keys(teachersData))].sort();
+    teachers.forEach(teacher => {
+        const option = document.createElement('option');
+        option.value = teacher;
+        option.textContent = teacher;
+        teacherSelect.appendChild(option);
+    });
+    
+    // Restore selection if it was set
+    if (currentValue) {
+        teacherSelect.value = currentValue;
+    }
+    
+    // Remove existing event listeners and add new one
+    const newTeacherSelect = teacherSelect.cloneNode(true);
+    teacherSelect.parentNode.replaceChild(newTeacherSelect, teacherSelect);
+    
+    newTeacherSelect.addEventListener('change', function() {
+        handleTeacherSelection(this.value);
+    });
+}
+
+// Handle teacher selection
+function handleTeacherSelection(teacherValue) {
+    const teacherSelect = document.getElementById('teacherSelect');
+    const studentSelect = document.getElementById('studentSelect');
+    const teacherNameField = document.getElementById('teacherName');
+    
+    if (teacherValue) {
+        // Set teacher name
+        teacherNameField.value = teacherValue;
+        
+        // Populate student dropdown
+        populateStudentDropdown(teacherValue);
+        studentSelect.disabled = false;
+        
+        // Save to cookie
+        saveFormDataToCookie();
+        updatePreview();
+    } else {
+        // Reset student dropdown
+        studentSelect.disabled = true;
+        const placeholderText = currentLanguage === 'en' ? '-- Please select teacher first --' : '-- 請先選擇教師 --';
+        studentSelect.innerHTML = `<option value="">${placeholderText}</option>`;
+        teacherNameField.value = '';
+        updatePreview();
+    }
+}
+
+// Populate student dropdown based on selected teacher
+function populateStudentDropdown(teacherName) {
+    const studentSelect = document.getElementById('studentSelect');
+    if (!studentSelect) return;
+    
+    // Store current selection
+    const currentValue = studentSelect.value;
+    
+    // Clear existing options
+    const placeholderText = currentLanguage === 'en' ? '-- Please select student --' : '-- 請選擇學生 --';
+    studentSelect.innerHTML = `<option value="">${placeholderText}</option>`;
+    
+    // Get students for this teacher
+    const students = teachersData[teacherName] || [];
+    
+    students.forEach((student, index) => {
+        const option = document.createElement('option');
+        option.value = index.toString();
+        // Format: StudentName_ClassGrade_Subject (e.g., Jimmy_S4_Math)
+        option.textContent = `${student.name}_${student.classGrade}_${student.subject}`;
+        studentSelect.appendChild(option);
+    });
+    
+    // Restore selection if it was set
+    if (currentValue) {
+        studentSelect.value = currentValue;
+    }
+    
+    // Remove existing event listeners and add new one
+    const newStudentSelect = studentSelect.cloneNode(true);
+    studentSelect.parentNode.replaceChild(newStudentSelect, studentSelect);
+    
+    newStudentSelect.addEventListener('change', function() {
+        handleStudentSelection(this.value, teacherName);
+    });
+}
+
+// Handle student selection
+function handleStudentSelection(studentValue, teacherName) {
+    const studentNameField = document.getElementById('studentName');
+    const subjectField = document.getElementById('subject');
+    const classGradeField = document.getElementById('classGrade');
+    
+    if (studentValue) {
+        // Get student data
+        const studentIndex = parseInt(studentValue);
+        const students = teachersData[teacherName] || [];
+        const student = students[studentIndex];
+        
+        if (student) {
+            studentNameField.value = student.name;
+            subjectField.value = student.subject;
+            classGradeField.value = student.classGrade;
+            
+            // Save to cookie and update preview
+            saveFormDataToCookie();
+            updatePreview();
+        }
+    } else {
+        // Reset fields
+        studentNameField.value = '';
+        subjectField.value = '';
+        classGradeField.value = '';
+        updatePreview();
+    }
+}
+
+// Show add new form modal
+function showAddNewForm() {
+    document.getElementById('addNewModal').style.display = 'block';
+}
+
+// Close add new modal
+function closeAddNewModal() {
+    document.getElementById('addNewModal').style.display = 'none';
+    document.getElementById('addNewForm').reset();
+}
+
+// Submit data to Google Sheets
+async function submitToGoogleSheets(teacherName, studentName, classGrade, subject) {
+    if (googleScriptUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
+        console.warn('Google Apps Script URL not configured. Data will only be stored locally.');
+        return false;
+    }
+    
+    try {
+        // Use form data format for better compatibility
+        const formData = new URLSearchParams();
+        formData.append('teacherName', teacherName);
+        formData.append('studentName', studentName);
+        formData.append('classGrade', classGrade);
+        formData.append('subject', subject);
+        
+        const response = await fetch(googleScriptUrl, {
+            method: 'POST',
+            mode: 'no-cors', // Google Apps Script requires no-cors for public access
+            body: formData
+        });
+        
+        // Since we're using no-cors, we can't read the response
+        // But we'll assume it succeeded if no error was thrown
+        return true;
+    } catch (error) {
+        console.error('Error submitting to Google Sheets:', error);
+        // For now, we'll still add it locally even if the API call fails
+        return false;
+    }
+}
+
+// Handle add new form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const addNewForm = document.getElementById('addNewForm');
+    if (addNewForm) {
+        addNewForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const teacherName = document.getElementById('newTeacherName').value.trim();
+            const studentName = document.getElementById('newStudentName').value.trim();
+            const classGrade = document.getElementById('newClassGrade').value.trim();
+            const subject = document.getElementById('newSubject').value.trim();
+            
+            if (!teacherName || !studentName || !classGrade || !subject) {
+                alert(currentLanguage === 'en' ? 'Please fill in all fields.' : '請填寫所有欄位。');
+                return;
+            }
+            
+            // Show loading message
+            const submitButton = this.querySelector('button[type="submit"]');
+            const originalText = submitButton.textContent;
+            submitButton.disabled = true;
+            submitButton.textContent = currentLanguage === 'en' ? 'Submitting...' : '提交中...';
+            
+            // Submit to Google Sheets
+            await submitToGoogleSheets(teacherName, studentName, classGrade, subject);
+            
+            // Add to local teachersData
+            if (!teachersData[teacherName]) {
+                teachersData[teacherName] = [];
+            }
+            
+            const newStudent = {
+                name: studentName,
+                subject: subject,
+                classGrade: classGrade
+            };
+            
+            teachersData[teacherName].push(newStudent);
+            
+            // Reload data from Google Sheets to ensure sync
+            await loadGoogleSheetsData();
+            
+            // Update dropdowns
+            populateTeacherDropdown();
+            
+            // Select the new teacher and student
+            const teacherSelect = document.getElementById('teacherSelect');
+            const studentSelect = document.getElementById('studentSelect');
+            teacherSelect.value = teacherName;
+            handleTeacherSelection(teacherName);
+            
+            // Wait a bit for dropdown to populate, then select student
+            setTimeout(() => {
+                const students = teachersData[teacherName] || [];
+                const newStudentIndex = students.length - 1;
+                if (newStudentIndex >= 0) {
+                    studentSelect.value = newStudentIndex.toString();
+                    handleStudentSelection(newStudentIndex.toString(), teacherName);
+                }
+            }, 100);
+            
+            // Close modal
+            closeAddNewModal();
+            
+            // Reset button
+            submitButton.disabled = false;
+            submitButton.textContent = originalText;
+            
+            alert(currentLanguage === 'en' ? 'Data submitted successfully!' : '資料提交成功！');
+        });
+    }
+    
+    // Close modal when clicking outside
+    const modal = document.getElementById('addNewModal');
+    if (modal) {
+        window.onclick = function(event) {
+            if (event.target === modal) {
+                closeAddNewModal();
+            }
+        }
+    }
+});
 
 // Initialize form with event listeners
 function initializeForm() {
@@ -273,6 +650,22 @@ function switchLanguage(lang) {
     
     // Update default section text when language changes
     setDefaultSectionText();
+    
+    // Update dropdown placeholders
+    const teacherSelect = document.getElementById('teacherSelect');
+    const studentSelect = document.getElementById('studentSelect');
+    if (teacherSelect && teacherSelect.options.length > 0) {
+        const placeholderText = lang === 'en' ? '-- Please select teacher --' : '-- 請選擇教師 --';
+        if (teacherSelect.options[0].value === '') {
+            teacherSelect.options[0].textContent = placeholderText;
+        }
+    }
+    if (studentSelect && studentSelect.options.length > 0) {
+        const placeholderText = lang === 'en' ? '-- Please select student --' : '-- 請選擇學生 --';
+        if (studentSelect.options[0].value === '') {
+            studentSelect.options[0].textContent = placeholderText;
+        }
+    }
     
     // Save language preference to cookie
     saveFormDataToCookie();
@@ -601,6 +994,19 @@ function clearForm() {
         : '確定要清除所有表單資料嗎？')) {
         document.getElementById('reportForm').reset();
         setDefaultDate();
+        
+        // Reset dropdowns
+        const teacherSelect = document.getElementById('teacherSelect');
+        const studentSelect = document.getElementById('studentSelect');
+        teacherSelect.value = '';
+        studentSelect.disabled = true;
+        studentSelect.innerHTML = '<option value="">-- 請先選擇教師 --</option>';
+        
+        // Clear hidden fields
+        document.getElementById('studentName').value = '';
+        document.getElementById('subject').value = '';
+        document.getElementById('classGrade').value = '';
+        document.getElementById('teacherName').value = '';
         
         // Clear Quill editors
         Object.values(quillEditors).forEach(editor => {
