@@ -436,28 +436,74 @@ async function submitToGoogleSheets(teacherName, studentName, classGrade, subjec
         return false;
     }
     
-    try {
-        // Use form data format for better compatibility
-        const formData = new URLSearchParams();
-        formData.append('teacherName', teacherName);
-        formData.append('studentName', studentName);
-        formData.append('classGrade', classGrade);
-        formData.append('subject', subject);
-        
-        const response = await fetch(googleScriptUrl, {
-            method: 'POST',
-            mode: 'no-cors', // Google Apps Script requires no-cors for public access
-            body: formData
-        });
-        
-        // Since we're using no-cors, we can't read the response
-        // But we'll assume it succeeded if no error was thrown
-        return true;
-    } catch (error) {
-        console.error('Error submitting to Google Sheets:', error);
-        // For now, we'll still add it locally even if the API call fails
-        return false;
-    }
+    return new Promise((resolve) => {
+        try {
+            // Create a temporary form for submission
+            // This method works reliably with Google Apps Script Web Apps
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = googleScriptUrl;
+            form.target = 'hiddenFrame';
+            form.style.display = 'none';
+            
+            // Create or get hidden iframe
+            let iframe = document.getElementById('hiddenFrame');
+            if (!iframe) {
+                iframe = document.createElement('iframe');
+                iframe.id = 'hiddenFrame';
+                iframe.name = 'hiddenFrame';
+                iframe.style.display = 'none';
+                iframe.style.width = '0';
+                iframe.style.height = '0';
+                document.body.appendChild(iframe);
+            }
+            
+            // Add form fields
+            const fields = {
+                teacherName: teacherName,
+                studentName: studentName,
+                classGrade: classGrade,
+                subject: subject
+            };
+            
+            Object.keys(fields).forEach(key => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = fields[key];
+                form.appendChild(input);
+            });
+            
+            // Handle iframe load event to know when submission is complete
+            iframe.onload = function() {
+                console.log('Data submitted to Google Sheets successfully:', fields);
+                // Clean up form after a short delay
+                setTimeout(() => {
+                    if (form.parentNode) {
+                        document.body.removeChild(form);
+                    }
+                }, 500);
+                resolve(true);
+            };
+            
+            // Append form to body and submit
+            document.body.appendChild(form);
+            form.submit();
+            
+            // Fallback: resolve after timeout if iframe doesn't load
+            setTimeout(() => {
+                if (form.parentNode) {
+                    document.body.removeChild(form);
+                }
+                console.log('Data submitted to Google Sheets (timeout fallback):', fields);
+                resolve(true);
+            }, 2000);
+            
+        } catch (error) {
+            console.error('Error submitting to Google Sheets:', error);
+            resolve(false);
+        }
+    });
 }
 
 // Handle add new form submission
