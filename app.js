@@ -266,38 +266,70 @@ async function loadGoogleSheetsData() {
             console.log('Total rows:', rows.length);
             console.log('Total columns:', cols.length);
             
-            // Find column indices (assuming first row is header)
+            // Find column indices - use column labels from data.table.cols (most reliable)
             let teacherColIndex = -1;
             let studentNameColIndex = -1;
             let subjectColIndex = -1;
             let classGradeColIndex = -1;
             
-            // Get header row to find column indices
-            if (rows.length > 0 && rows[0].c) {
-                console.log('Header row cells:', rows[0].c.map((cell, idx) => ({
+            // Use column labels from data.table.cols (this is the actual header)
+            if (cols && cols.length > 0) {
+                console.log('Column labels from data.table.cols:', cols.map((col, idx) => ({
                     index: idx,
-                    value: cell ? cell.v : null,
-                    label: cell ? cell.f : null
+                    id: col.id,
+                    label: col.label,
+                    type: col.type
                 })));
                 
-                rows[0].c.forEach((cell, index) => {
-                    const cellValue = cell ? (cell.v || '').toString().toLowerCase() : '';
-                    console.log(`Header cell [${index}]:`, cellValue);
+                cols.forEach((col, index) => {
+                    const label = (col.label || '').toString().toLowerCase();
+                    console.log(`Column [${index}] label: "${label}"`);
                     
-                    if (cellValue.includes('教師') || cellValue.includes('teacher')) {
+                    if (label.includes('教師') || label.includes('teacher')) {
                         teacherColIndex = index;
-                        console.log(`Found teacher column at index: ${index}`);
-                    } else if (cellValue.includes('學生姓名') || cellValue.includes('student name') || cellValue.includes('學生')) {
+                        console.log(`✓ Found teacher column at index: ${index} (from label)`);
+                    } else if (label.includes('學生姓名') || label.includes('student name') || (label.includes('學生') && !label.includes('教師'))) {
                         studentNameColIndex = index;
-                        console.log(`Found student name column at index: ${index}`);
-                    } else if (cellValue.includes('科目') || cellValue.includes('subject')) {
+                        console.log(`✓ Found student name column at index: ${index} (from label)`);
+                    } else if (label.includes('科目') || label.includes('subject')) {
                         subjectColIndex = index;
-                        console.log(`Found subject column at index: ${index}`);
-                    } else if (cellValue.includes('班級') || cellValue.includes('年級') || cellValue.includes('class') || cellValue.includes('grade')) {
+                        console.log(`✓ Found subject column at index: ${index} (from label)`);
+                    } else if (label.includes('班級') || label.includes('年級') || label.includes('class') || label.includes('grade')) {
                         classGradeColIndex = index;
-                        console.log(`Found class/grade column at index: ${index}`);
+                        console.log(`✓ Found class/grade column at index: ${index} (from label)`);
                     }
                 });
+            }
+            
+            // If we didn't find all columns from labels, try the first row as header (fallback)
+            if (teacherColIndex === -1 || studentNameColIndex === -1 || subjectColIndex === -1 || classGradeColIndex === -1) {
+                console.log('⚠ Some columns not found from labels, checking first row as header (fallback)...');
+                if (rows.length > 0 && rows[0].c) {
+                    console.log('First row cells:', rows[0].c.map((cell, idx) => ({
+                        index: idx,
+                        value: cell ? cell.v : null,
+                        label: cell ? cell.f : null
+                    })));
+                    
+                    rows[0].c.forEach((cell, index) => {
+                        const cellValue = cell ? (cell.v || '').toString().toLowerCase() : '';
+                        console.log(`First row cell [${index}]:`, cellValue);
+                        
+                        if (teacherColIndex === -1 && (cellValue.includes('教師') || cellValue.includes('teacher'))) {
+                            teacherColIndex = index;
+                            console.log(`✓ Found teacher column at index: ${index} (from first row)`);
+                        } else if (studentNameColIndex === -1 && (cellValue.includes('學生姓名') || cellValue.includes('student name') || cellValue.includes('學生'))) {
+                            studentNameColIndex = index;
+                            console.log(`✓ Found student name column at index: ${index} (from first row)`);
+                        } else if (subjectColIndex === -1 && (cellValue.includes('科目') || cellValue.includes('subject'))) {
+                            subjectColIndex = index;
+                            console.log(`✓ Found subject column at index: ${index} (from first row)`);
+                        } else if (classGradeColIndex === -1 && (cellValue.includes('班級') || cellValue.includes('年級') || cellValue.includes('class') || cellValue.includes('grade'))) {
+                            classGradeColIndex = index;
+                            console.log(`✓ Found class/grade column at index: ${index} (from first row)`);
+                        }
+                    });
+                }
             }
             
             console.log('Column indices found:', {
