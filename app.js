@@ -11,7 +11,7 @@ let googleSheetId = '1M4mRBujj-mx4eHHNl55RrgfA-SqVLaVoubnQ58MmKLU';
 // 3. Paste the code from the comment below
 // 4. Deploy as Web App (Execute as: Me, Who has access: Anyone)
 // 5. Copy the Web App URL and paste it here
-let googleScriptUrl = 'https://script.google.com/macros/s/AKfycbxk3azCL4LrATYxIsqRS8AiPPEME4tXh7gJK8Gi_KmOpiZwjala7ev8uhbjJiPzO93hhw/exec';
+let googleScriptUrl = 'https://script.google.com/macros/s/AKfycbxjSG4NFldkcup_iFqD_BhmZOmNg946RXQb6QGdqil8vJSnIFs-rsYXEURlj7Mj6Wnj/exec';
 
 // Cookie utility functions
 function setCookie(name, value, days = 365) {
