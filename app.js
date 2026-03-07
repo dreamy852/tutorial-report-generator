@@ -2,44 +2,11 @@
 let currentLanguage = 'en';
 let quillEditors = {};
 let logoBase64 = '';
-let teachersData = {}; // Store teachers and their students data
-let googleSheetId = '1M4mRBujj-mx4eHHNl55RrgfA-SqVLaVoubnQ58MmKLU';
-// Google Apps Script Web App URL for writing data
-// To set this up:
-// 1. Go to https://script.google.com
-// 2. Create a new project
-// 3. Paste the code from the comment below
-// 4. Deploy as Web App (Execute as: Me, Who has access: Anyone)
-// 5. Copy the Web App URL and paste it here
-let googleScriptUrl = 'https://script.google.com/macros/s/AKfycbxjSG4NFldkcup_iFqD_BhmZOmNg946RXQb6QGdqil8vJSnIFs-rsYXEURlj7Mj6Wnj/exec';
 
-// Cookie utility functions
-function setCookie(name, value, days = 365) {
-    const date = new Date();
-    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-    const expires = `expires=${date.toUTCString()}`;
-    document.cookie = `${name}=${encodeURIComponent(value)};${expires};path=/`;
-}
+const REPORT_FORM_STORAGE_KEY = 'tutorial_report_form_data';
 
-function getCookie(name) {
-    const nameEQ = name + '=';
-    const ca = document.cookie.split(';');
-    for (let i = 0; i < ca.length; i++) {
-        let c = ca[i];
-        while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-        if (c.indexOf(nameEQ) === 0) {
-            return decodeURIComponent(c.substring(nameEQ.length, c.length));
-        }
-    }
-    return null;
-}
-
-function deleteCookie(name) {
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
-}
-
-// Save form data to cookie
-function saveFormDataToCookie() {
+// Save form data to localStorage
+function saveFormDataToLocalStorage() {
     try {
         const formData = {
             studentName: document.getElementById('studentName').value || '',
@@ -54,108 +21,49 @@ function saveFormDataToCookie() {
             section4: quillEditors.section4 ? quillEditors.section4.root.innerHTML : '',
             language: currentLanguage
         };
-        
-        const jsonData = JSON.stringify(formData);
-        setCookie('reportFormData', jsonData, 365); // Store for 1 year
+        localStorage.setItem(REPORT_FORM_STORAGE_KEY, JSON.stringify(formData));
     } catch (error) {
-        console.warn('Failed to save form data to cookie:', error);
+        console.warn('Failed to save form data to localStorage:', error);
     }
 }
 
-// Load form data from cookie
-function loadFormDataFromCookie() {
+// Load form data from localStorage
+function loadFormDataFromLocalStorage() {
     try {
-        const cookieData = getCookie('reportFormData');
-        if (!cookieData) return false;
-        
-        const formData = JSON.parse(cookieData);
-        
-        // Restore hidden fields
+        const stored = localStorage.getItem(REPORT_FORM_STORAGE_KEY);
+        if (!stored) return false;
+        const formData = JSON.parse(stored);
+
+        if (formData.teacherName) document.getElementById('teacherName').value = formData.teacherName;
         if (formData.studentName) document.getElementById('studentName').value = formData.studentName;
         if (formData.subject) document.getElementById('subject').value = formData.subject;
         if (formData.classGrade) document.getElementById('classGrade').value = formData.classGrade;
         if (formData.reportTitle) document.getElementById('reportTitle').value = formData.reportTitle;
         if (formData.reportDate) document.getElementById('reportDate').value = formData.reportDate;
-        if (formData.teacherName) document.getElementById('teacherName').value = formData.teacherName;
-        
-        // Restore dropdown selections
-        if (formData.teacherName) {
-            const teacherSelect = document.getElementById('teacherSelect');
-            const teacherName = formData.teacherName;
-            
-            // Check if teacher exists in dropdown
-            let teacherExists = false;
-            for (let option of teacherSelect.options) {
-                if (option.value === teacherName) {
-                    teacherSelect.value = teacherName;
-                    teacherExists = true;
-                    break;
-                }
-            }
-            
-            if (teacherExists) {
-                // Populate and select student
-                populateStudentDropdown(teacherName);
-                const studentSelect = document.getElementById('studentSelect');
-                
-                // Find matching student
-                const students = teachersData[teacherName] || [];
-                for (let i = 0; i < students.length; i++) {
-                    if (students[i].name === formData.studentName &&
-                        students[i].subject === formData.subject &&
-                        students[i].classGrade === formData.classGrade) {
-                        studentSelect.value = i.toString();
-                        break;
-                    }
-                }
-            }
-        }
-        
-        // Restore Quill editor content (only if editors are initialized)
-        if (quillEditors.section1 && formData.section1) {
-            quillEditors.section1.root.innerHTML = formData.section1;
-        }
-        if (quillEditors.section2 && formData.section2) {
-            quillEditors.section2.root.innerHTML = formData.section2;
-        }
-        if (quillEditors.section3 && formData.section3) {
-            quillEditors.section3.root.innerHTML = formData.section3;
-        }
-        if (quillEditors.section4 && formData.section4) {
-            quillEditors.section4.root.innerHTML = formData.section4;
-        }
-        
-        // Restore language (do this last to avoid triggering unnecessary updates)
+
+        if (quillEditors.section1 && formData.section1) quillEditors.section1.root.innerHTML = formData.section1;
+        if (quillEditors.section2 && formData.section2) quillEditors.section2.root.innerHTML = formData.section2;
+        if (quillEditors.section3 && formData.section3) quillEditors.section3.root.innerHTML = formData.section3;
+        if (quillEditors.section4 && formData.section4) quillEditors.section4.root.innerHTML = formData.section4;
+
         if (formData.language && formData.language !== currentLanguage) {
             currentLanguage = formData.language;
-            // Update UI without triggering save (we'll save after)
             document.querySelectorAll('.lang-btn').forEach(btn => {
                 btn.classList.remove('active');
-                if (btn.dataset.lang === formData.language) {
-                    btn.classList.add('active');
-                }
+                if (btn.dataset.lang === formData.language) btn.classList.add('active');
             });
-            // Update translatable elements
             document.querySelectorAll('[data-en][data-zh]').forEach(element => {
                 const text = formData.language === 'en' ? element.dataset.en : element.dataset.zh;
-                if (element.tagName === 'INPUT' || element.tagName === 'SELECT') {
-                    if (element.type === 'button' || element.type === 'submit') {
-                        element.value = text;
-                    }
-                } else {
+                if (element.tagName === 'INPUT' && (element.type === 'button' || element.type === 'submit')) {
+                    element.value = text;
+                } else if (element.tagName !== 'INPUT') {
                     element.textContent = text;
                 }
             });
-            document.querySelectorAll('select option').forEach(option => {
-                if (option.dataset.en && option.dataset.zh) {
-                    option.textContent = formData.language === 'en' ? option.dataset.en : option.dataset.zh;
-                }
-            });
         }
-        
         return true;
     } catch (error) {
-        console.warn('Failed to load form data from cookie:', error);
+        console.warn('Failed to load form data from localStorage:', error);
         return false;
     }
 }
@@ -165,21 +73,14 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeEditors();
     initializeForm();
     
-    // Load Google Sheets data first
-    loadGoogleSheetsData().then(() => {
-        // Try to load data from cookie after sheets are loaded
-        const dataLoaded = loadFormDataFromCookie();
-        
-        if (!dataLoaded) {
-            // Only set defaults if no cookie data was found
-            setDefaultDate();
-            setDefaultTitle();
-            setDefaultSectionText();
-        }
-        
-        loadDefaultLogo();
-        updatePreview();
-    });
+    const dataLoaded = loadFormDataFromLocalStorage();
+    if (!dataLoaded) {
+        setDefaultDate();
+        setDefaultTitle();
+        setDefaultSectionText();
+    }
+    loadDefaultLogo();
+    updatePreview();
 });
 
 // Initialize Quill rich text editors
@@ -204,530 +105,12 @@ function initializeEditors() {
         
         quillEditors[sectionId] = editor;
         
-        // Update preview and save to cookie on content change
         editor.on('text-change', function() {
             updatePreview();
-            saveFormDataToCookie();
+            saveFormDataToLocalStorage();
         });
     });
 }
-
-// Load Google Sheets data
-async function loadGoogleSheetsData() {
-    console.log('=== Starting to load Google Sheets data ===');
-    console.log('Sheet ID:', googleSheetId);
-    
-    try {
-        // Use Google Sheets JSON API (public sheet)
-        const sheetId = googleSheetId;
-        const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
-        
-        console.log('Fetching URL:', url);
-        
-        const response = await fetch(url);
-        console.log('Response status:', response.status, response.statusText);
-        console.log('Response ok:', response.ok);
-        
-        if (!response.ok) {
-            throw new Error(`Failed to load Google Sheets data: ${response.status} ${response.statusText}`);
-        }
-        
-        const text = await response.text();
-        console.log('Response text length:', text.length);
-        console.log('Response text preview (first 200 chars):', text.substring(0, 200));
-        
-        // Remove the prefix "google.visualization.Query.setResponse(" and suffix ");"
-        let jsonText;
-        try {
-            jsonText = text.substring(47, text.length - 2);
-            console.log('Extracted JSON text length:', jsonText.length);
-        } catch (parseError) {
-            console.error('Error extracting JSON from response:', parseError);
-            console.log('Full response text:', text);
-            throw new Error('Failed to extract JSON from response');
-        }
-        
-        const data = JSON.parse(jsonText);
-        console.log('Parsed data structure:', {
-            hasTable: !!data.table,
-            hasRows: !!(data.table && data.table.rows),
-            rowCount: data.table ? data.table.rows.length : 0,
-            colCount: data.table ? data.table.cols.length : 0
-        });
-        
-        // Reset teachersData
-        teachersData = {};
-        
-        // Parse the data into teachersData structure
-        if (data.table && data.table.rows) {
-            const rows = data.table.rows;
-            const cols = data.table.cols;
-            
-            console.log('Total rows:', rows.length);
-            console.log('Total columns:', cols.length);
-            
-            // Find column indices - use column labels from data.table.cols (most reliable)
-            let teacherColIndex = -1;
-            let studentNameColIndex = -1;
-            let subjectColIndex = -1;
-            let classGradeColIndex = -1;
-            
-            // Use column labels from data.table.cols (this is the actual header)
-            if (cols && cols.length > 0) {
-                console.log('Column labels from data.table.cols:', cols.map((col, idx) => ({
-                    index: idx,
-                    id: col.id,
-                    label: col.label,
-                    type: col.type
-                })));
-                
-                cols.forEach((col, index) => {
-                    const label = (col.label || '').toString().toLowerCase();
-                    console.log(`Column [${index}] label: "${label}"`);
-                    
-                    if (label.includes('教師') || label.includes('teacher')) {
-                        teacherColIndex = index;
-                        console.log(`✓ Found teacher column at index: ${index} (from label)`);
-                    } else if (label.includes('學生姓名') || label.includes('student name') || (label.includes('學生') && !label.includes('教師'))) {
-                        studentNameColIndex = index;
-                        console.log(`✓ Found student name column at index: ${index} (from label)`);
-                    } else if (label.includes('科目') || label.includes('subject')) {
-                        subjectColIndex = index;
-                        console.log(`✓ Found subject column at index: ${index} (from label)`);
-                    } else if (label.includes('班級') || label.includes('年級') || label.includes('class') || label.includes('grade')) {
-                        classGradeColIndex = index;
-                        console.log(`✓ Found class/grade column at index: ${index} (from label)`);
-                    }
-                });
-            }
-            
-            // If we didn't find all columns from labels, try the first row as header (fallback)
-            if (teacherColIndex === -1 || studentNameColIndex === -1 || subjectColIndex === -1 || classGradeColIndex === -1) {
-                console.log('⚠ Some columns not found from labels, checking first row as header (fallback)...');
-                if (rows.length > 0 && rows[0].c) {
-                    console.log('First row cells:', rows[0].c.map((cell, idx) => ({
-                        index: idx,
-                        value: cell ? cell.v : null,
-                        label: cell ? cell.f : null
-                    })));
-                    
-                    rows[0].c.forEach((cell, index) => {
-                        const cellValue = cell ? (cell.v || '').toString().toLowerCase() : '';
-                        console.log(`First row cell [${index}]:`, cellValue);
-                        
-                        if (teacherColIndex === -1 && (cellValue.includes('教師') || cellValue.includes('teacher'))) {
-                            teacherColIndex = index;
-                            console.log(`✓ Found teacher column at index: ${index} (from first row)`);
-                        } else if (studentNameColIndex === -1 && (cellValue.includes('學生姓名') || cellValue.includes('student name') || cellValue.includes('學生'))) {
-                            studentNameColIndex = index;
-                            console.log(`✓ Found student name column at index: ${index} (from first row)`);
-                        } else if (subjectColIndex === -1 && (cellValue.includes('科目') || cellValue.includes('subject'))) {
-                            subjectColIndex = index;
-                            console.log(`✓ Found subject column at index: ${index} (from first row)`);
-                        } else if (classGradeColIndex === -1 && (cellValue.includes('班級') || cellValue.includes('年級') || cellValue.includes('class') || cellValue.includes('grade'))) {
-                            classGradeColIndex = index;
-                            console.log(`✓ Found class/grade column at index: ${index} (from first row)`);
-                        }
-                    });
-                }
-            }
-            
-            console.log('Column indices found:', {
-                teacher: teacherColIndex,
-                studentName: studentNameColIndex,
-                subject: subjectColIndex,
-                classGrade: classGradeColIndex
-            });
-            
-            // Parse data rows (skip header)
-            let processedRows = 0;
-            let skippedRows = 0;
-            
-            for (let i = 1; i < rows.length; i++) {
-                const row = rows[i].c;
-                if (!row) {
-                    skippedRows++;
-                    continue;
-                }
-                
-                const teacher = teacherColIndex >= 0 && row[teacherColIndex] ? (row[teacherColIndex].v || '').toString().trim() : '';
-                const studentName = studentNameColIndex >= 0 && row[studentNameColIndex] ? (row[studentNameColIndex].v || '').toString().trim() : '';
-                const subject = subjectColIndex >= 0 && row[subjectColIndex] ? (row[subjectColIndex].v || '').toString().trim() : '';
-                const classGrade = classGradeColIndex >= 0 && row[classGradeColIndex] ? (row[classGradeColIndex].v || '').toString().trim() : '';
-                
-                if (i <= 5) {
-                    console.log(`Row ${i} data:`, {
-                        teacher,
-                        studentName,
-                        subject,
-                        classGrade,
-                        rawCells: row.map(cell => cell ? cell.v : null)
-                    });
-                }
-                
-                if (teacher && studentName) {
-                    if (!teachersData[teacher]) {
-                        teachersData[teacher] = [];
-                    }
-                    teachersData[teacher].push({
-                        name: studentName,
-                        subject: subject,
-                        classGrade: classGrade
-                    });
-                    processedRows++;
-                } else {
-                    if (i <= 5) {
-                        console.log(`Row ${i} skipped - missing teacher or student name`);
-                    }
-                    skippedRows++;
-                }
-            }
-            
-            console.log('Data processing summary:', {
-                processedRows,
-                skippedRows,
-                teachersCount: Object.keys(teachersData).length,
-                teachersData: Object.keys(teachersData).map(teacher => ({
-                    teacher,
-                    studentsCount: teachersData[teacher].length
-                }))
-            });
-        } else {
-            console.warn('No table or rows found in data');
-            console.log('Data structure:', data);
-        }
-        
-        // Populate teacher dropdown
-        console.log('Populating teacher dropdown...');
-        populateTeacherDropdown();
-        console.log('=== Finished loading Google Sheets data ===');
-        
-    } catch (error) {
-        console.error('=== Error loading Google Sheets data ===');
-        console.error('Error type:', error.constructor.name);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-        // Still populate dropdown with empty state
-        populateTeacherDropdown();
-    }
-}
-
-// Populate teacher dropdown
-function populateTeacherDropdown() {
-    const teacherSelect = document.getElementById('teacherSelect');
-    if (!teacherSelect) return;
-    
-    // Store current selection
-    const currentValue = teacherSelect.value;
-    
-    // Clear existing options
-    const placeholderText = currentLanguage === 'en' ? '-- Please select teacher --' : '-- 請選擇教師 --';
-    teacherSelect.innerHTML = `<option value="">${placeholderText}</option>`;
-    
-    // Add teachers from Google Sheets (get unique teacher names)
-    const teachers = [...new Set(Object.keys(teachersData))].sort();
-    teachers.forEach(teacher => {
-        const option = document.createElement('option');
-        option.value = teacher;
-        option.textContent = teacher;
-        teacherSelect.appendChild(option);
-    });
-    
-    // Restore selection if it was set
-    if (currentValue) {
-        teacherSelect.value = currentValue;
-    }
-    
-    // Remove existing event listeners and add new one
-    const newTeacherSelect = teacherSelect.cloneNode(true);
-    teacherSelect.parentNode.replaceChild(newTeacherSelect, teacherSelect);
-    
-    newTeacherSelect.addEventListener('change', function() {
-        handleTeacherSelection(this.value);
-    });
-}
-
-// Handle teacher selection
-function handleTeacherSelection(teacherValue) {
-    const teacherSelect = document.getElementById('teacherSelect');
-    const teacherNameField = document.getElementById('teacherName');
-    
-    if (teacherValue) {
-        // Set teacher name
-        teacherNameField.value = teacherValue;
-        
-        // Populate student dropdown and get the new element reference
-        const newStudentSelect = populateStudentDropdown(teacherValue);
-        // Enable the student dropdown after populating
-        if (newStudentSelect) {
-            newStudentSelect.disabled = false;
-        } else {
-            // Fallback: get the element again if populateStudentDropdown didn't return it
-            const studentSelect = document.getElementById('studentSelect');
-            if (studentSelect) {
-                studentSelect.disabled = false;
-            }
-        }
-        
-        // Save to cookie
-        saveFormDataToCookie();
-        updatePreview();
-    } else {
-        // Reset student dropdown
-        const studentSelect = document.getElementById('studentSelect');
-        if (studentSelect) {
-            studentSelect.disabled = true;
-            const placeholderText = currentLanguage === 'en' ? '-- Please select teacher first --' : '-- 請先選擇教師 --';
-            studentSelect.innerHTML = `<option value="">${placeholderText}</option>`;
-        }
-        teacherNameField.value = '';
-        updatePreview();
-    }
-}
-
-// Populate student dropdown based on selected teacher
-function populateStudentDropdown(teacherName) {
-    const studentSelect = document.getElementById('studentSelect');
-    if (!studentSelect) return;
-    
-    // Store current selection and disabled state
-    const currentValue = studentSelect.value;
-    const wasDisabled = studentSelect.disabled;
-    
-    // Clear existing options
-    const placeholderText = currentLanguage === 'en' ? '-- Please select student --' : '-- 請選擇學生 --';
-    studentSelect.innerHTML = `<option value="">${placeholderText}</option>`;
-    
-    // Get students for this teacher
-    const students = teachersData[teacherName] || [];
-    
-    students.forEach((student, index) => {
-        const option = document.createElement('option');
-        option.value = index.toString();
-        // Format: StudentName_ClassGrade_Subject (e.g., Jimmy_S4_Math)
-        option.textContent = `${student.name}_${student.classGrade}_${student.subject}`;
-        studentSelect.appendChild(option);
-    });
-    
-    // Restore selection if it was set
-    if (currentValue) {
-        studentSelect.value = currentValue;
-    }
-    
-    // Remove existing event listeners and add new one
-    const newStudentSelect = studentSelect.cloneNode(true);
-    // Preserve disabled state
-    newStudentSelect.disabled = wasDisabled;
-    studentSelect.parentNode.replaceChild(newStudentSelect, studentSelect);
-    
-    newStudentSelect.addEventListener('change', function() {
-        handleStudentSelection(this.value, teacherName);
-    });
-    
-    // Return the new element reference
-    return newStudentSelect;
-}
-
-// Handle student selection
-function handleStudentSelection(studentValue, teacherName) {
-    const studentNameField = document.getElementById('studentName');
-    const subjectField = document.getElementById('subject');
-    const classGradeField = document.getElementById('classGrade');
-    
-    if (studentValue) {
-        // Get student data
-        const studentIndex = parseInt(studentValue);
-        const students = teachersData[teacherName] || [];
-        const student = students[studentIndex];
-        
-        if (student) {
-            studentNameField.value = student.name;
-            subjectField.value = student.subject;
-            classGradeField.value = student.classGrade;
-            
-            // Save to cookie and update preview
-            saveFormDataToCookie();
-            updatePreview();
-        }
-    } else {
-        // Reset fields
-        studentNameField.value = '';
-        subjectField.value = '';
-        classGradeField.value = '';
-        updatePreview();
-    }
-}
-
-// Show add new form modal
-function showAddNewForm() {
-    document.getElementById('addNewModal').style.display = 'block';
-}
-
-// Close add new modal
-function closeAddNewModal() {
-    document.getElementById('addNewModal').style.display = 'none';
-    document.getElementById('addNewForm').reset();
-}
-
-// Submit data to Google Sheets
-async function submitToGoogleSheets(teacherName, studentName, classGrade, subject) {
-    if (googleScriptUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
-        console.warn('Google Apps Script URL not configured. Data will only be stored locally.');
-        return false;
-    }
-    
-    return new Promise((resolve) => {
-        try {
-            // Create a temporary form for submission
-            // This method works reliably with Google Apps Script Web Apps
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = googleScriptUrl;
-            form.target = 'hiddenFrame';
-            form.style.display = 'none';
-            
-            // Create or get hidden iframe
-            let iframe = document.getElementById('hiddenFrame');
-            if (!iframe) {
-                iframe = document.createElement('iframe');
-                iframe.id = 'hiddenFrame';
-                iframe.name = 'hiddenFrame';
-                iframe.style.display = 'none';
-                iframe.style.width = '0';
-                iframe.style.height = '0';
-                document.body.appendChild(iframe);
-            }
-            
-            // Add form fields
-            const fields = {
-                teacherName: teacherName,
-                studentName: studentName,
-                classGrade: classGrade,
-                subject: subject
-            };
-            
-            Object.keys(fields).forEach(key => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = fields[key];
-                form.appendChild(input);
-            });
-            
-            // Handle iframe load event to know when submission is complete
-            iframe.onload = function() {
-                console.log('Data submitted to Google Sheets successfully:', fields);
-                // Clean up form after a short delay
-                setTimeout(() => {
-                    if (form.parentNode) {
-                        document.body.removeChild(form);
-                    }
-                }, 500);
-                resolve(true);
-            };
-            
-            // Append form to body and submit
-            document.body.appendChild(form);
-            form.submit();
-            
-            // Fallback: resolve after timeout if iframe doesn't load
-            setTimeout(() => {
-                if (form.parentNode) {
-                    document.body.removeChild(form);
-                }
-                console.log('Data submitted to Google Sheets (timeout fallback):', fields);
-                resolve(true);
-            }, 2000);
-            
-        } catch (error) {
-            console.error('Error submitting to Google Sheets:', error);
-            resolve(false);
-        }
-    });
-}
-
-// Handle add new form submission
-document.addEventListener('DOMContentLoaded', function() {
-    const addNewForm = document.getElementById('addNewForm');
-    if (addNewForm) {
-        addNewForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const teacherName = document.getElementById('newTeacherName').value.trim();
-            const studentName = document.getElementById('newStudentName').value.trim();
-            const classGrade = document.getElementById('newClassGrade').value.trim();
-            const subject = document.getElementById('newSubject').value.trim();
-            
-            if (!teacherName || !studentName || !classGrade || !subject) {
-                alert(currentLanguage === 'en' ? 'Please fill in all fields.' : '請填寫所有欄位。');
-                return;
-            }
-            
-            // Show loading message
-            const submitButton = this.querySelector('button[type="submit"]');
-            const originalText = submitButton.textContent;
-            submitButton.disabled = true;
-            submitButton.textContent = currentLanguage === 'en' ? 'Submitting...' : '提交中...';
-            
-            // Submit to Google Sheets
-            await submitToGoogleSheets(teacherName, studentName, classGrade, subject);
-            
-            // Add to local teachersData
-            if (!teachersData[teacherName]) {
-                teachersData[teacherName] = [];
-            }
-            
-            const newStudent = {
-                name: studentName,
-                subject: subject,
-                classGrade: classGrade
-            };
-            
-            teachersData[teacherName].push(newStudent);
-            
-            // Reload data from Google Sheets to ensure sync
-            await loadGoogleSheetsData();
-            
-            // Update dropdowns
-            populateTeacherDropdown();
-            
-            // Select the new teacher and student
-            const teacherSelect = document.getElementById('teacherSelect');
-            const studentSelect = document.getElementById('studentSelect');
-            teacherSelect.value = teacherName;
-            handleTeacherSelection(teacherName);
-            
-            // Wait a bit for dropdown to populate, then select student
-            setTimeout(() => {
-                const students = teachersData[teacherName] || [];
-                const newStudentIndex = students.length - 1;
-                if (newStudentIndex >= 0) {
-                    studentSelect.value = newStudentIndex.toString();
-                    handleStudentSelection(newStudentIndex.toString(), teacherName);
-                }
-            }, 100);
-            
-            // Close modal
-            closeAddNewModal();
-            
-            // Reset button
-            submitButton.disabled = false;
-            submitButton.textContent = originalText;
-            
-            alert(currentLanguage === 'en' ? 'Data submitted successfully!' : '資料提交成功！');
-        });
-    }
-    
-    // Close modal when clicking outside
-    const modal = document.getElementById('addNewModal');
-    if (modal) {
-        window.onclick = function(event) {
-            if (event.target === modal) {
-                closeAddNewModal();
-            }
-        }
-    }
-});
 
 // Initialize form with event listeners
 function initializeForm() {
@@ -737,11 +120,11 @@ function initializeForm() {
     inputs.forEach(input => {
         input.addEventListener('input', function() {
             updatePreview();
-            saveFormDataToCookie();
+            saveFormDataToLocalStorage();
         });
         input.addEventListener('change', function() {
             updatePreview();
-            saveFormDataToCookie();
+            saveFormDataToLocalStorage();
         });
     });
 }
@@ -837,24 +220,8 @@ function switchLanguage(lang) {
     // Update default section text when language changes
     setDefaultSectionText();
     
-    // Update dropdown placeholders
-    const teacherSelect = document.getElementById('teacherSelect');
-    const studentSelect = document.getElementById('studentSelect');
-    if (teacherSelect && teacherSelect.options.length > 0) {
-        const placeholderText = lang === 'en' ? '-- Please select teacher --' : '-- 請選擇教師 --';
-        if (teacherSelect.options[0].value === '') {
-            teacherSelect.options[0].textContent = placeholderText;
-        }
-    }
-    if (studentSelect && studentSelect.options.length > 0) {
-        const placeholderText = lang === 'en' ? '-- Please select student --' : '-- 請選擇學生 --';
-        if (studentSelect.options[0].value === '') {
-            studentSelect.options[0].textContent = placeholderText;
-        }
-    }
-    
-    // Save language preference to cookie
-    saveFormDataToCookie();
+    // Save language preference to localStorage
+    saveFormDataToLocalStorage();
     
     updatePreview();
 }
@@ -999,7 +366,7 @@ async function enhanceWithAI(sectionId, buttonElement) {
             // Replace the current content with enhanced plain text content
             editor.root.innerHTML = htmlContent;
             updatePreview();
-            saveFormDataToCookie(); // Save to cookie after AI enhancement
+            saveFormDataToLocalStorage(); // Save to cookie after AI enhancement
             
             alert(currentLanguage === 'en' 
                 ? 'Content enhanced successfully!' 
@@ -1181,14 +548,7 @@ function clearForm() {
         document.getElementById('reportForm').reset();
         setDefaultDate();
         
-        // Reset dropdowns
-        const teacherSelect = document.getElementById('teacherSelect');
-        const studentSelect = document.getElementById('studentSelect');
-        teacherSelect.value = '';
-        studentSelect.disabled = true;
-        studentSelect.innerHTML = '<option value="">-- 請先選擇教師 --</option>';
-        
-        // Clear hidden fields
+        // Clear text fields
         document.getElementById('studentName').value = '';
         document.getElementById('subject').value = '';
         document.getElementById('classGrade').value = '';
@@ -1203,7 +563,7 @@ function clearForm() {
         loadDefaultLogo();
         
         // Clear cookie
-        deleteCookie('reportFormData');
+        localStorage.removeItem(REPORT_FORM_STORAGE_KEY);
         
         // Set defaults again
         setDefaultTitle();

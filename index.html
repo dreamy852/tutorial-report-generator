@@ -23,32 +23,28 @@
                 <form id="reportForm" class="form">
                     <!-- Student Information -->
                     <section class="form-group">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                            <h2 class="section-title" data-en="Student Information" data-zh="學生資料" style="margin: 0;">Student Information</h2>
-                            <button type="button" class="btn btn-secondary" onclick="showAddNewForm()" data-en="Add New" data-zh="新增">
-                                新增
-                            </button>
+                        <h2 class="section-title" data-en="Student Information" data-zh="學生資料" style="margin-bottom: 20px;">Student Information</h2>
+                        
+                        <div class="form-field">
+                            <label for="teacherName" data-en="Teacher" data-zh="教師">教師 *</label>
+                            <input type="text" id="teacherName" name="teacherName" required placeholder="" data-en-placeholder="Teacher name" data-zh-placeholder="教師姓名">
                         </div>
                         
                         <div class="form-field">
-                            <label for="teacherSelect" data-en="Teacher" data-zh="教師">教師 *</label>
-                            <select id="teacherSelect" name="teacherSelect" required>
-                                <option value="" data-en="-- Please select teacher --" data-zh="-- 請選擇教師 --">-- 請選擇教師 --</option>
-                            </select>
+                            <label for="studentName" data-en="Student" data-zh="學生">學生 *</label>
+                            <input type="text" id="studentName" name="studentName" required placeholder="" data-en-placeholder="Student name" data-zh-placeholder="學生姓名">
                         </div>
                         
-                        <div class="form-field">
-                            <label for="studentSelect" data-en="Student" data-zh="學生">學生 *</label>
-                            <select id="studentSelect" name="studentSelect" required disabled>
-                                <option value="" data-en="-- Please select teacher first --" data-zh="-- 請先選擇教師 --">-- 請先選擇教師 --</option>
-                            </select>
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="subject" data-en="Subject" data-zh="科目">科目</label>
+                                <input type="text" id="subject" name="subject" placeholder="">
+                            </div>
+                            <div class="form-field">
+                                <label for="classGrade" data-en="Class/Grade" data-zh="班級/年級">班級/年級</label>
+                                <input type="text" id="classGrade" name="classGrade" placeholder="">
+                            </div>
                         </div>
-                        
-                        <!-- Hidden fields to store actual values -->
-                        <input type="hidden" id="studentName" name="studentName">
-                        <input type="hidden" id="subject" name="subject">
-                        <input type="hidden" id="classGrade" name="classGrade">
-                        <input type="hidden" id="teacherName" name="teacherName">
                     </section>
 
                     <!-- Report Details -->
@@ -124,36 +120,6 @@
                     <div class="preview-placeholder" data-en="Start filling the form to see the preview..." data-zh="開始填寫表單以查看預覽...">Start filling the form to see the preview...</div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Modal for adding new entry -->
-    <div id="addNewModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close" onclick="closeAddNewModal()">&times;</span>
-            <h2 data-en="Add New Entry" data-zh="新增資料">新增資料</h2>
-            <form id="addNewForm">
-                <div class="form-field">
-                    <label for="newTeacherName" data-en="Teacher Name" data-zh="教師姓名">教師姓名 *</label>
-                    <input type="text" id="newTeacherName" name="newTeacherName" required>
-                </div>
-                <div class="form-field">
-                    <label for="newStudentName" data-en="Student Name" data-zh="學生姓名">學生姓名 *</label>
-                    <input type="text" id="newStudentName" name="newStudentName" required>
-                </div>
-                <div class="form-field">
-                    <label for="newClassGrade" data-en="Class/Grade" data-zh="班級/年級">班級/年級 *</label>
-                    <input type="text" id="newClassGrade" name="newClassGrade" required>
-                </div>
-                <div class="form-field">
-                    <label for="newSubject" data-en="Subject" data-zh="科目">科目 *</label>
-                    <input type="text" id="newSubject" name="newSubject" required>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeAddNewModal()" data-en="Cancel" data-zh="取消">取消</button>
-                    <button type="submit" class="btn btn-primary" data-en="Submit" data-zh="提交">提交</button>
-                </div>
-            </form>
         </div>
     </div>
 

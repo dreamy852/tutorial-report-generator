@@ -209,17 +209,13 @@
             <form id="recordForm">
                 <div class="form-row">
                     <div class="form-field">
-                        <label for="teacherSelect">Teacher Name *</label>
-                        <select id="teacherSelect" name="teacherSelect" required>
-                            <option value="">-- Please select teacher --</option>
-                        </select>
+                        <label for="teacherInput">Teacher Name *</label>
+                        <input type="text" id="teacherInput" name="teacherInput" required placeholder="Teacher name">
                     </div>
                     
                     <div class="form-field">
-                        <label for="studentSelect">Student Name *</label>
-                        <select id="studentSelect" name="studentSelect" required disabled>
-                            <option value="">-- Please select teacher first --</option>
-                        </select>
+                        <label for="studentInput">Student Name *</label>
+                        <input type="text" id="studentInput" name="studentInput" required placeholder="Student name">
                     </div>
                 </div>
                 
@@ -265,164 +261,27 @@
     </div>
 
     <script>
-        // Storage key
+        // Storage keys
         const STORAGE_KEY = 'tutorial_records';
-        const TEACHERS_STORAGE_KEY = 'tutorial_teachers_data';
+        const LAST_TEACHER_KEY = 'tutorial_last_teacher';
+        const LAST_STUDENT_KEY = 'tutorial_last_student';
         
         // Global variables
         let records = [];
-        let teachersData = {};
         let currentSort = { field: null, direction: 'asc' };
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            loadTeachersData();
             loadRecords();
             initializeForm();
             setDefaultDate();
+            // Prefill last used teacher/student from localStorage
+            const lastTeacher = localStorage.getItem(LAST_TEACHER_KEY);
+            const lastStudent = localStorage.getItem(LAST_STUDENT_KEY);
+            if (lastTeacher) document.getElementById('teacherInput').value = lastTeacher;
+            if (lastStudent) document.getElementById('studentInput').value = lastStudent;
             renderTable();
         });
-        
-        // Load teachers data from localStorage or Google Sheets
-        async function loadTeachersData() {
-            // Try to load from localStorage first
-            const stored = localStorage.getItem(TEACHERS_STORAGE_KEY);
-            if (stored) {
-                try {
-                    teachersData = JSON.parse(stored);
-                    populateTeacherDropdown();
-                    return;
-                } catch (e) {
-                    console.warn('Failed to parse teachers data from localStorage');
-                }
-            }
-            
-            // If not in localStorage, try to load from Google Sheets (from app.js)
-            try {
-                const googleSheetId = '1M4mRBujj-mx4eHHNl55RrgfA-SqVLaVoubnQ58MmKLU';
-                const url = `https://docs.google.com/spreadsheets/d/${googleSheetId}/gviz/tq?tqx=out:json`;
-                const response = await fetch(url);
-                const text = await response.text();
-                const jsonText = text.substring(47, text.length - 2);
-                const data = JSON.parse(jsonText);
-                
-                teachersData = {};
-                if (data.table && data.table.rows) {
-                    const rows = data.table.rows;
-                    const cols = data.table.cols;
-                    
-                    let teacherColIndex = -1;
-                    let studentNameColIndex = -1;
-                    let subjectColIndex = -1;
-                    let classGradeColIndex = -1;
-                    
-                    // Find column indices
-                    cols.forEach((col, index) => {
-                        const label = (col.label || '').toString().toLowerCase();
-                        if (label.includes('教師') || label.includes('teacher')) {
-                            teacherColIndex = index;
-                        } else if (label.includes('學生姓名') || label.includes('student name') || (label.includes('學生') && !label.includes('教師'))) {
-                            studentNameColIndex = index;
-                        } else if (label.includes('科目') || label.includes('subject')) {
-                            subjectColIndex = index;
-                        } else if (label.includes('班級') || label.includes('年級') || label.includes('class') || label.includes('grade')) {
-                            classGradeColIndex = index;
-                        }
-                    });
-                    
-                    // Parse data rows
-                    for (let i = 1; i < rows.length; i++) {
-                        const row = rows[i].c;
-                        if (!row) continue;
-                        
-                        const teacher = teacherColIndex >= 0 && row[teacherColIndex] ? (row[teacherColIndex].v || '').toString().trim() : '';
-                        const studentName = studentNameColIndex >= 0 && row[studentNameColIndex] ? (row[studentNameColIndex].v || '').toString().trim() : '';
-                        const subject = subjectColIndex >= 0 && row[subjectColIndex] ? (row[subjectColIndex].v || '').toString().trim() : '';
-                        const classGrade = classGradeColIndex >= 0 && row[classGradeColIndex] ? (row[classGradeColIndex].v || '').toString().trim() : '';
-                        
-                        if (teacher && studentName) {
-                            if (!teachersData[teacher]) {
-                                teachersData[teacher] = [];
-                            }
-                            teachersData[teacher].push({
-                                name: studentName,
-                                subject: subject,
-                                classGrade: classGrade
-                            });
-                        }
-                    }
-                }
-                
-                // Save to localStorage
-                localStorage.setItem(TEACHERS_STORAGE_KEY, JSON.stringify(teachersData));
-                populateTeacherDropdown();
-            } catch (error) {
-                console.error('Failed to load teachers data:', error);
-                // Use empty data
-                teachersData = {};
-                populateTeacherDropdown();
-            }
-        }
-        
-        // Populate teacher dropdown
-        function populateTeacherDropdown() {
-            const teacherSelect = document.getElementById('teacherSelect');
-            if (!teacherSelect) return;
-            
-            const currentValue = teacherSelect.value;
-            teacherSelect.innerHTML = '<option value="">-- Please select teacher --</option>';
-            
-            const teachers = [...new Set(Object.keys(teachersData))].sort();
-            teachers.forEach(teacher => {
-                const option = document.createElement('option');
-                option.value = teacher;
-                option.textContent = teacher;
-                teacherSelect.appendChild(option);
-            });
-            
-            if (currentValue) {
-                teacherSelect.value = currentValue;
-            }
-            
-            // Add event listener
-            teacherSelect.addEventListener('change', function() {
-                handleTeacherSelection(this.value);
-            });
-        }
-        
-        // Handle teacher selection
-        function handleTeacherSelection(teacherValue) {
-            const studentSelect = document.getElementById('studentSelect');
-            
-            if (teacherValue) {
-                populateStudentDropdown(teacherValue);
-                studentSelect.disabled = false;
-            } else {
-                studentSelect.disabled = true;
-                studentSelect.innerHTML = '<option value="">-- Please select teacher first --</option>';
-            }
-        }
-        
-        // Populate student dropdown
-        function populateStudentDropdown(teacherName) {
-            const studentSelect = document.getElementById('studentSelect');
-            if (!studentSelect) return;
-            
-            const currentValue = studentSelect.value;
-            studentSelect.innerHTML = '<option value="">-- Please select student --</option>';
-            
-            const students = teachersData[teacherName] || [];
-            students.forEach((student, index) => {
-                const option = document.createElement('option');
-                option.value = index.toString();
-                option.textContent = `${student.name}_${student.classGrade}_${student.subject}`;
-                studentSelect.appendChild(option);
-            });
-            
-            if (currentValue) {
-                studentSelect.value = currentValue;
-            }
-        }
         
         // Initialize form
         function initializeForm() {
@@ -466,8 +325,10 @@
         
         // Add new record
         function addRecord() {
-            const teacherSelect = document.getElementById('teacherSelect');
-            const studentSelect = document.getElementById('studentSelect');
+            const teacherInput = document.getElementById('teacherInput');
+            const studentInput = document.getElementById('studentInput');
+            const teacherName = (teacherInput.value || '').trim();
+            const studentName = (studentInput.value || '').trim();
             const recordDate = document.getElementById('recordDate').value;
             const startTime = document.getElementById('startTime').value;
             const endTime = document.getElementById('endTime').value;
@@ -475,7 +336,7 @@
             const additionalRemark = document.getElementById('additionalRemark').value.trim();
             
             // Validate
-            if (!teacherSelect.value || !studentSelect.value || !recordDate || !startTime || !endTime || !comment) {
+            if (!teacherName || !studentName || !recordDate || !startTime || !endTime || !comment) {
                 alert('Please fill in all required fields.');
                 return;
             }
@@ -494,22 +355,15 @@
                 return;
             }
             
-            // Get teacher and student names
-            const teacherName = teacherSelect.value;
-            const studentIndex = parseInt(studentSelect.value);
-            const students = teachersData[teacherName] || [];
-            const student = students[studentIndex];
-            
-            if (!student) {
-                alert('Invalid student selection.');
-                return;
-            }
+            // Save last used teacher/student for next time
+            localStorage.setItem(LAST_TEACHER_KEY, teacherName);
+            localStorage.setItem(LAST_STUDENT_KEY, studentName);
             
             // Create record
             const record = {
                 id: Date.now().toString(),
                 teacher: teacherName,
-                student: student.name,
+                student: studentName,
                 date: recordDate,
                 startTime: startTime,
                 endTime: endTime,
@@ -521,11 +375,11 @@
             saveRecords();
             renderTable();
             
-            // Reset form
+            // Reset form but keep teacher/student prefilled from localStorage
             document.getElementById('recordForm').reset();
             setDefaultDate();
-            studentSelect.disabled = true;
-            studentSelect.innerHTML = '<option value="">-- Please select teacher first --</option>';
+            teacherInput.value = teacherName;
+            studentInput.value = studentName;
             
             alert('Record added successfully!');
         }
